@@ -42,3 +42,5 @@ java -jar target/html-anonymizer-1.0.0.jar
 ```
 
 Na janela, selecione a pasta de entrada, selecione a pasta de saida e clique em `Iniciar anonimizacao`.
+
+A pasta original nao e modificada. A pasta de saida e criada automaticamente quando necessario, mantendo a estrutura de subpastas da entrada, mas contendo somente os arquivos HTML processados. Arquivos que nao sao `.html` ou `.htm` nao sao copiados.
