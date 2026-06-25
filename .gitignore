@@ -1,0 +1,17 @@
+target/
+*.class
+*.jar
+*.exe
+*.msi
+*.log
+
+.idea/
+.vscode/
+*.iml
+
+dist/
+build/
+out/
+
+.DS_Store
+Thumbs.db
