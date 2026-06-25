@@ -1,31 +1,40 @@
 # HTML Anonymizer
 
-Ferramenta desktop em Java para anonimizar numeros de telefone e Internal Ticket Number em arquivos HTML.
+Ferramenta desktop em Java para anonimizar telefones e valores de `Internal Ticket Number` em arquivos HTML.
 
 ## Objetivo
 
-O programa recebe uma pasta de entrada, varre todos os arquivos `.html` e `.htm`, incluindo subpastas, e gera uma nova pasta com a mesma estrutura contendo apenas os HTMLs anonimizados.
+O programa processa um arquivo HTML individual ou uma pasta inteira com arquivos `.html` e `.htm`, gerando uma saida anonimizada sem modificar os arquivos originais.
 
-## Regras
+## Regras de anonimizacao
 
-- Nao modificar os arquivos originais.
-- Processar somente arquivos HTML.
-- Preservar a estrutura de pastas.
-- Nao copiar arquivos que nao sejam HTML.
-- Preservar a formatacao original dos telefones, incluindo `+`, espacos e hifens.
-- Manter anonimizacao consistente: se um telefone ou ticket aparecer mais de uma vez, deve receber sempre o mesmo valor anonimizado.
-- Nao gerar CSV.
-- Gerar executavel `.exe` ao final.
+- Telefones sao substituidos mantendo, sempre que possivel, `+`, espacos e hifens nas mesmas posicoes.
+- O mesmo telefone recebe sempre o mesmo valor anonimizado durante uma execucao.
+- Valores de `Internal Ticket Number` sao anonimizados apenas no numero apos esse texto.
+- O mesmo ticket recebe sempre o mesmo valor anonimizado durante uma execucao.
+- Arquivos originais nunca sao modificados.
+- Arquivos que nao sejam `.html` ou `.htm` nao sao copiados.
+- O programa nao gera CSV.
 
-## Uso via terminal
+## Uso pela interface grafica
 
-Compile o projeto com Maven:
+Compile o projeto e execute o `.jar` sem argumentos:
 
 ```powershell
 mvn package
+java -jar target/html-anonymizer-1.0.0.jar
 ```
 
-Execute o arquivo `.jar` informando um arquivo HTML ou uma pasta de entrada, e a pasta de saida:
+Na janela, selecione ou arraste:
+
+- um arquivo `.html`/`.htm` individual; ou
+- uma pasta de entrada.
+
+Depois selecione a pasta de saida e clique em `Iniciar anonimizacao`.
+
+## Uso via terminal
+
+Execute o `.jar` informando a entrada e a pasta de saida:
 
 ```powershell
 java -jar target/html-anonymizer-1.0.0.jar "C:/entrada" "C:/saida"
@@ -37,22 +46,63 @@ Exemplo com arquivo individual:
 java -jar target/html-anonymizer-1.0.0.jar "C:/entrada/teste.html" "C:/saida"
 ```
 
+Resultado:
+
+```text
+C:/saida/teste.html
+```
+
 Exemplo com pasta:
 
 ```powershell
-java -jar target/html-anonymizer-1.0.0.jar "C:/clientes/empresa_a" "C:/anonimizados"
+java -jar target/html-anonymizer-1.0.0.jar "C:/dados/clientes" "C:/dados"
 ```
 
-Quando a entrada for um arquivo `.html` ou `.htm`, o arquivo anonimizado sera gravado diretamente na pasta de saida com o mesmo nome. Quando a entrada for uma pasta, o programa cria dentro da saida uma pasta raiz com o nome da entrada acrescido de `_anonimizado`, preserva a estrutura de subpastas e nao altera a pasta original.
+Resultado:
 
-## Uso com interface grafica
+```text
+C:/dados/clientes_anonimizado/a.html
+C:/dados/clientes_anonimizado/empresa1/b.html
+C:/dados/clientes_anonimizado/empresa2/subpasta/c.html
+```
 
-Para abrir a interface Swing simples, execute o `.jar` sem argumentos:
+Quando a entrada for uma pasta, apenas a pasta raiz gerada recebe o sufixo `_anonimizado`. As subpastas internas mantem os nomes originais.
+
+## Build do JAR
+
+Use Maven diretamente:
 
 ```powershell
-java -jar target/html-anonymizer-1.0.0.jar
+mvn clean package
 ```
 
-Na janela, selecione um arquivo HTML ou uma pasta de entrada e a pasta de saida pelos botoes `Selecionar...`, ou arraste e solte um arquivo `.html`/`.htm` ou uma pasta diretamente no campo de entrada. Depois clique em `Iniciar anonimizacao`.
+Ou use o script:
 
-A pasta original nao e modificada. A pasta de saida e criada automaticamente quando necessario. Para entradas em pasta, a saida mantem a estrutura de subpastas dentro da pasta raiz `_anonimizado`, mas contendo somente os arquivos HTML processados. Arquivos que nao sao `.html` ou `.htm` nao sao copiados.
+```bat
+scripts\build-jar.bat
+```
+
+O arquivo sera gerado em:
+
+```text
+target/html-anonymizer-1.0.0.jar
+```
+
+## Build do EXE no Windows
+
+Para gerar o instalador `.exe`, use um JDK que inclua `jpackage` e garanta que `mvn` e `jpackage` estejam no `PATH`.
+
+Execute:
+
+```bat
+scripts\build-exe.bat
+```
+
+O script:
+
+- roda `mvn clean package`;
+- valida se `jpackage` esta disponivel;
+- limpa saidas temporarias anteriores;
+- gera o instalador em `dist/`.
+
+Os artefatos de build (`target/`, `dist/`, `.jar`, `.exe`, `.msi`) ficam ignorados pelo Git.
