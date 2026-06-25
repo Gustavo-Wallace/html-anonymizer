@@ -103,6 +103,11 @@ O script:
 - roda `mvn clean package`;
 - valida se `jpackage` esta disponivel;
 - limpa saidas temporarias anteriores;
-- gera o instalador em `dist/`.
+- gera o instalador em `dist/`;
+- solicita a pasta de instalacao durante a instalacao;
+- cria atalho na Area de Trabalho;
+- cria entrada no Menu Iniciar no grupo `HTML Anonymizer`.
+
+O arquivo `.exe` gerado em `dist/` e um instalador do Windows. Depois de instalar, abra o programa pelo atalho da Area de Trabalho ou pelo Menu Iniciar. O instalador nao abre o programa automaticamente ao finalizar.
 
 Os artefatos de build (`target/`, `dist/`, `.jar`, `.exe`, `.msi`) ficam ignorados pelo Git.

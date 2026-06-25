@@ -67,6 +67,10 @@ jpackage ^
   --dest "%DIST_DIR%" ^
   --app-version "%APP_VERSION%" ^
   --vendor "Internal Tool" ^
+  --win-menu ^
+  --win-shortcut ^
+  --win-menu-group "%APP_NAME%" ^
+  --win-dir-chooser ^
   --temp "%TEMP_DIR%"
 
 if errorlevel 1 (
@@ -76,8 +80,14 @@ if errorlevel 1 (
 )
 
 echo.
-echo Executavel gerado com sucesso em:
+echo Instalador gerado com sucesso em:
 echo %CD%\%DIST_DIR%
+echo.
+echo Observacao:
+echo O arquivo em dist e um instalador do Windows.
+echo Depois de instalar, abra o programa pelo atalho da Area de Trabalho
+echo ou pelo Menu Iniciar no grupo "%APP_NAME%".
+echo O instalador nao abre o programa automaticamente ao finalizar.
 echo.
 
 endlocal
