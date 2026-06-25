@@ -4,11 +4,12 @@ setlocal
 cd /d "%~dp0.."
 
 set "APP_NAME=HTML Anonymizer"
-set "APP_VERSION=1.0.0"
+set "APP_VERSION=1.0.1"
 set "MAIN_JAR=html-anonymizer-1.0.0.jar"
 set "MAIN_CLASS=br.com.estagio.anonymizer.Main"
 set "DIST_DIR=dist"
 set "TEMP_DIR=build\jpackage-temp"
+set "UPGRADE_UUID=8e4c3a74-6d4f-4f6f-a41b-7607bc42a7a1"
 
 echo.
 echo ========================================
@@ -71,6 +72,8 @@ jpackage ^
   --win-shortcut ^
   --win-menu-group "%APP_NAME%" ^
   --win-dir-chooser ^
+  --win-per-user-install ^
+  --win-upgrade-uuid "%UPGRADE_UUID%" ^
   --temp "%TEMP_DIR%"
 
 if errorlevel 1 (
@@ -85,9 +88,12 @@ echo %CD%\%DIST_DIR%
 echo.
 echo Observacao:
 echo O arquivo em dist e um instalador do Windows.
-echo Depois de instalar, abra o programa pelo atalho da Area de Trabalho
-echo ou pelo Menu Iniciar no grupo "%APP_NAME%".
+echo O instalador tenta criar automaticamente o atalho da Area de Trabalho.
+echo O programa tambem deve aparecer no Menu Iniciar, no grupo "%APP_NAME%".
 echo O instalador nao abre o programa automaticamente ao finalizar.
+echo Se houver processos "Installer of HTML Anonymizer" presos no Gerenciador de Tarefas,
+echo finalize-os antes de executar o instalador novamente.
+echo Se uma versao anterior ja estiver instalada, desinstale-a antes de testar este instalador.
 echo.
 
 endlocal

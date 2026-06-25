@@ -105,9 +105,12 @@ O script:
 - limpa saidas temporarias anteriores;
 - gera o instalador em `dist/`;
 - solicita a pasta de instalacao durante a instalacao;
-- cria atalho na Area de Trabalho;
+- solicita instalacao por usuario;
+- tenta criar automaticamente atalho na Area de Trabalho;
 - cria entrada no Menu Iniciar no grupo `HTML Anonymizer`.
 
 O arquivo `.exe` gerado em `dist/` e um instalador do Windows. Depois de instalar, abra o programa pelo atalho da Area de Trabalho ou pelo Menu Iniciar. O instalador nao abre o programa automaticamente ao finalizar.
+
+Se o instalador ficar aberto no Gerenciador de Tarefas como `Installer of HTML Anonymizer` mas nenhuma janela aparecer, finalize esses processos e execute o instalador novamente. Se uma versao anterior ja estiver instalada, desinstale-a antes de testar um novo instalador. O Windows Installer pode reaproveitar o estado da instalacao anterior e nao recriar atalhos ja omitidos/removidos.
 
 Os artefatos de build (`target/`, `dist/`, `.jar`, `.exe`, `.msi`) ficam ignorados pelo Git.
