@@ -37,23 +37,23 @@ Build a Windows desktop application that:
 Phone examples to support:
 
 ```text
-+556291064865
-556191213756
-+5511 972792222
-5511972792222
-+1 305 9023346
-+1609618-4620
-+54 9 3757 50-5105
-+591 72040940
-+351 963 830 852
-+595 984 563687
-+1 954 393-7920
++550000000000
+550000000000
++5500 000000000
+5500000000000
++0 000 0000000
++0000000-0000
++00 0 0000 00-0000
++000 00000000
++000 000 000 000
++000 000 000000
++0 000 000-0000
 ```
 
 Internal Ticket Number format:
 
 ```text
-Internal Ticket Number	2450379
+Internal Ticket Number	0000001
 ```
 
 Only the number after `Internal Ticket Number` should be anonymized.

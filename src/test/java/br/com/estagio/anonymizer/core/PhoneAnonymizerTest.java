@@ -2,8 +2,8 @@ package br.com.estagio.anonymizer.core;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -12,27 +12,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PhoneAnonymizerTest {
     private static final String[] EXAMPLES = {
-            "+556291064865",
-            "556191213756",
-            "+5511 972792222",
-            "5511972792222",
-            "+1 305 9023346",
-            "+1609618-4620",
-            "+54 9 3757 50-5105",
-            "+591 72040940",
-            "+351 963 830 852",
-            "+595 984 563687",
-            "+1 954 393-7920"
+            "+550000000000",
+            "550000000000",
+            "+5500 000000000",
+            "5500000000000",
+            "+0 000 0000000",
+            "+0000000-0000",
+            "+00 0 0000 00-0000",
+            "+000 00000000",
+            "+000 000 000 000",
+            "+000 000 000000",
+            "+0 000 000-0000"
     };
 
     @Test
     void shouldAnonymizePlainPhone() {
         PhoneAnonymizer anonymizer = new PhoneAnonymizer();
 
-        String result = anonymizer.anonymize("Telefone: 556191213756");
+        String result = anonymizer.anonymize("Telefone: 550000000000");
         String replacement = result.substring("Telefone: ".length());
 
-        assertNotEquals("Telefone: 556191213756", result);
+        assertNotEquals("Telefone: 550000000000", result);
         assertEquals(12, replacement.length());
         assertTrue(replacement.matches("\\d{12}"));
     }
@@ -41,7 +41,7 @@ class PhoneAnonymizerTest {
     void shouldPreservePlusSpacesAndHyphens() {
         PhoneAnonymizer anonymizer = new PhoneAnonymizer();
 
-        String original = "+1 954 393-7920";
+        String original = "+0 000 000-0000";
         String result = anonymizer.anonymize(original);
 
         assertNotEquals(original, result);
@@ -53,23 +53,23 @@ class PhoneAnonymizerTest {
     void shouldKeepSameReplacementForRepeatedPhone() {
         PhoneAnonymizer anonymizer = new PhoneAnonymizer();
 
-        String result = anonymizer.anonymize("A 556191213756 B 556191213756");
+        String result = anonymizer.anonymize("A 550000000000 B 550000000000");
         String[] parts = result.split(" ");
 
         assertEquals(parts[1], parts[3]);
-        assertNotEquals("556191213756", parts[1]);
+        assertNotEquals("550000000000", parts[1]);
     }
 
     @Test
     void shouldUseDifferentReplacementsForDifferentPhones() {
         PhoneAnonymizer anonymizer = new PhoneAnonymizer();
 
-        String result = anonymizer.anonymize("A 556191213756 B 5511972792222");
+        String result = anonymizer.anonymize("A 550000000000 B 551111111111");
         String[] parts = result.split(" ");
 
         assertNotEquals(parts[1], parts[3]);
-        assertNotEquals("556191213756", parts[1]);
-        assertNotEquals("5511972792222", parts[3]);
+        assertNotEquals("550000000000", parts[1]);
+        assertNotEquals("551111111111", parts[3]);
     }
 
     @Test
@@ -84,16 +84,25 @@ class PhoneAnonymizerTest {
     @Test
     void shouldDetectAndAnonymizeAllExamples() {
         PhoneAnonymizer anonymizer = new PhoneAnonymizer();
-        Set<String> replacements = new HashSet<>();
+        Map<String, String> replacementsByOriginalPhone = new HashMap<>();
+        Map<String, String> originalPhonesByReplacement = new HashMap<>();
 
         for (String example : EXAMPLES) {
             String result = anonymizer.anonymize(example);
+            String normalizedExample = normalize(example);
+            String normalizedResult = normalize(result);
 
             assertNotEquals(example, result);
             assertSameFormatting(example, result);
             assertEquals(countDigits(example), countDigits(result));
-            assertFalse(replacements.contains(normalize(result)));
-            replacements.add(normalize(result));
+
+            String existingReplacement = replacementsByOriginalPhone.putIfAbsent(normalizedExample, normalizedResult);
+            if (existingReplacement != null) {
+                assertEquals(existingReplacement, normalizedResult);
+            } else {
+                assertFalse(originalPhonesByReplacement.containsKey(normalizedResult));
+                originalPhonesByReplacement.put(normalizedResult, normalizedExample);
+            }
         }
     }
 
