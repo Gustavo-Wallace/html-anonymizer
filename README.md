@@ -1,6 +1,6 @@
 # HTML Anonymizer
 
-Ferramenta desktop em Java para anonimizar números de telefone e Internal Ticket Number em arquivos HTML.
+Ferramenta desktop em Java para anonimizar numeros de telefone e Internal Ticket Number em arquivos HTML.
 
 ## Objetivo
 
@@ -8,11 +8,27 @@ O programa recebe uma pasta de entrada, varre todos os arquivos `.html` e `.htm`
 
 ## Regras
 
-- Não modificar os arquivos originais.
+- Nao modificar os arquivos originais.
 - Processar somente arquivos HTML.
 - Preservar a estrutura de pastas.
-- Não copiar arquivos que não sejam HTML.
-- Preservar a formatação original dos telefones, incluindo `+`, espaços e hífens.
-- Manter anonimização consistente: se um telefone ou ticket aparecer mais de uma vez, deve receber sempre o mesmo valor anonimizado.
-- Não gerar CSV.
-- Gerar executável `.exe` ao final.
+- Nao copiar arquivos que nao sejam HTML.
+- Preservar a formatacao original dos telefones, incluindo `+`, espacos e hifens.
+- Manter anonimizacao consistente: se um telefone ou ticket aparecer mais de uma vez, deve receber sempre o mesmo valor anonimizado.
+- Nao gerar CSV.
+- Gerar executavel `.exe` ao final.
+
+## Uso via terminal
+
+Compile o projeto com Maven:
+
+```powershell
+mvn package
+```
+
+Execute o arquivo `.jar` informando a pasta de entrada e a pasta de saida:
+
+```powershell
+java -jar target/html-anonymizer-1.0.0.jar "C:/entrada" "C:/saida"
+```
+
+O programa processa recursivamente arquivos `.html` e `.htm`, preserva a estrutura de pastas na saida e nao altera a pasta original.
