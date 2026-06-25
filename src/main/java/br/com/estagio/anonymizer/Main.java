@@ -2,13 +2,20 @@ package br.com.estagio.anonymizer;
 
 import br.com.estagio.anonymizer.file.FolderProcessingResult;
 import br.com.estagio.anonymizer.file.FolderProcessor;
+import br.com.estagio.anonymizer.ui.MainWindow;
 
+import javax.swing.SwingUtilities;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 
 public class Main {
     public static void main(String[] args) {
+        if (args.length == 0) {
+            SwingUtilities.invokeLater(() -> new MainWindow().setVisible(true));
+            return;
+        }
+
         int exitCode = run(args, System.out, System.err);
         if (exitCode != 0) {
             System.exit(exitCode);

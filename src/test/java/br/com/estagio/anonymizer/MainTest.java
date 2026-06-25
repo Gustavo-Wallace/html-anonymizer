@@ -19,10 +19,10 @@ class MainTest {
     Path tempDir;
 
     @Test
-    void shouldShowUsageWhenArgumentsAreMissing() {
+    void shouldShowUsageWhenArgumentCountIsInvalid() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
 
-        int exitCode = Main.run(new String[0], emptyPrintStream(), printStream(err));
+        int exitCode = Main.run(new String[] {"only-input"}, emptyPrintStream(), printStream(err));
 
         assertEquals(1, exitCode);
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("Uso:"));

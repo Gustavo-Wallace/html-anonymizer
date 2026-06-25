@@ -32,3 +32,13 @@ java -jar target/html-anonymizer-1.0.0.jar "C:/entrada" "C:/saida"
 ```
 
 O programa processa recursivamente arquivos `.html` e `.htm`, preserva a estrutura de pastas na saida e nao altera a pasta original.
+
+## Uso com interface grafica
+
+Para abrir a interface Swing simples, execute o `.jar` sem argumentos:
+
+```powershell
+java -jar target/html-anonymizer-1.0.0.jar
+```
+
+Na janela, selecione a pasta de entrada, selecione a pasta de saida e clique em `Iniciar anonimizacao`.
