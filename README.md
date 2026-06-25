@@ -25,13 +25,25 @@ Compile o projeto com Maven:
 mvn package
 ```
 
-Execute o arquivo `.jar` informando a pasta de entrada e a pasta de saida:
+Execute o arquivo `.jar` informando um arquivo HTML ou uma pasta de entrada, e a pasta de saida:
 
 ```powershell
 java -jar target/html-anonymizer-1.0.0.jar "C:/entrada" "C:/saida"
 ```
 
-O programa processa recursivamente arquivos `.html` e `.htm`, preserva a estrutura de pastas na saida e nao altera a pasta original.
+Exemplo com arquivo individual:
+
+```powershell
+java -jar target/html-anonymizer-1.0.0.jar "C:/entrada/teste.html" "C:/saida"
+```
+
+Exemplo com pasta:
+
+```powershell
+java -jar target/html-anonymizer-1.0.0.jar "C:/clientes/empresa_a" "C:/anonimizados"
+```
+
+Quando a entrada for um arquivo `.html` ou `.htm`, o arquivo anonimizado sera gravado diretamente na pasta de saida com o mesmo nome. Quando a entrada for uma pasta, o programa cria dentro da saida uma pasta raiz com o nome da entrada acrescido de `_anonimizado`, preserva a estrutura de subpastas e nao altera a pasta original.
 
 ## Uso com interface grafica
 
@@ -41,6 +53,6 @@ Para abrir a interface Swing simples, execute o `.jar` sem argumentos:
 java -jar target/html-anonymizer-1.0.0.jar
 ```
 
-Na janela, selecione a pasta de entrada e a pasta de saida pelos botoes `Selecionar...`, ou arraste e solte pastas diretamente nos campos. Depois clique em `Iniciar anonimizacao`.
+Na janela, selecione um arquivo HTML ou uma pasta de entrada e a pasta de saida pelos botoes `Selecionar...`, ou arraste e solte um arquivo `.html`/`.htm` ou uma pasta diretamente no campo de entrada. Depois clique em `Iniciar anonimizacao`.
 
-A pasta original nao e modificada. A pasta de saida e criada automaticamente quando necessario, mantendo a estrutura de subpastas da entrada, mas contendo somente os arquivos HTML processados. Arquivos que nao sao `.html` ou `.htm` nao sao copiados.
+A pasta original nao e modificada. A pasta de saida e criada automaticamente quando necessario. Para entradas em pasta, a saida mantem a estrutura de subpastas dentro da pasta raiz `_anonimizado`, mas contendo somente os arquivos HTML processados. Arquivos que nao sao `.html` ou `.htm` nao sao copiados.

@@ -1,7 +1,7 @@
 package br.com.estagio.anonymizer;
 
 import br.com.estagio.anonymizer.file.FolderProcessingResult;
-import br.com.estagio.anonymizer.file.FolderProcessor;
+import br.com.estagio.anonymizer.file.InputProcessor;
 import br.com.estagio.anonymizer.ui.MainWindow;
 
 import javax.swing.SwingUtilities;
@@ -28,34 +28,34 @@ public class Main {
             return 1;
         }
 
-        Path inputFolder = Path.of(args[0]);
+        Path inputPath = Path.of(args[0]);
         Path outputFolder = Path.of(args[1]);
 
         try {
-            FolderProcessingResult result = new FolderProcessor().processFolder(inputFolder, outputFolder);
-            printSummary(out, inputFolder, outputFolder, result);
+            FolderProcessingResult result = new InputProcessor().processInput(inputPath, outputFolder);
+            printSummary(out, inputPath, outputFolder, result);
             return 0;
         } catch (IllegalArgumentException | IOException exception) {
-            err.println("Erro ao processar pasta: " + exception.getMessage());
+            err.println("Erro ao processar entrada: " + exception.getMessage());
             return 2;
         }
     }
 
     private static void printUsage(PrintStream err) {
-        err.println("Uso: java -jar target/html-anonymizer-1.0.0.jar <pasta-entrada> <pasta-saida>");
+        err.println("Uso: java -jar target/html-anonymizer-1.0.0.jar <arquivo-html-ou-pasta-entrada> <pasta-saida>");
         err.println("Exemplo: java -jar target/html-anonymizer-1.0.0.jar \"C:/entrada\" \"C:/saida\"");
     }
 
     private static void printSummary(
             PrintStream out,
-            Path inputFolder,
+            Path inputPath,
             Path outputFolder,
             FolderProcessingResult result
     ) {
         out.println("Processamento concluido.");
         out.println("Arquivos HTML encontrados: " + result.getHtmlFilesFound());
         out.println("Arquivos processados: " + result.getFilesProcessed());
-        out.println("Pasta de entrada: " + inputFolder);
+        out.println("Entrada: " + inputPath);
         out.println("Pasta de saida: " + outputFolder);
     }
 }

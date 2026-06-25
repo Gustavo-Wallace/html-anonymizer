@@ -45,9 +45,28 @@ class MainTest {
 
         assertEquals(0, exitCode);
         assertTrue(out.toString(StandardCharsets.UTF_8).contains("Arquivos processados: 1"));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("page.html")));
+        assertFalse(Files.readString(output.resolve("input_anonimizado").resolve("page.html"), StandardCharsets.UTF_8).contains("550000000000"));
+        assertEquals("", err.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void shouldProcessSingleHtmlFileWhenArgumentsAreValid() throws IOException {
+        Path input = tempDir.resolve("page.html");
+        Path output = tempDir.resolve("output");
+        Files.writeString(input, "<td>550000000000</td>", StandardCharsets.UTF_8);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        int exitCode = Main.run(
+                new String[] {input.toString(), output.toString()},
+                printStream(out),
+                emptyPrintStream()
+        );
+
+        assertEquals(0, exitCode);
+        assertTrue(out.toString(StandardCharsets.UTF_8).contains("Arquivos processados: 1"));
         assertTrue(Files.exists(output.resolve("page.html")));
         assertFalse(Files.readString(output.resolve("page.html"), StandardCharsets.UTF_8).contains("550000000000"));
-        assertEquals("", err.toString(StandardCharsets.UTF_8));
     }
 
     @Test
@@ -63,7 +82,7 @@ class MainTest {
         );
 
         assertEquals(2, exitCode);
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("Erro ao processar pasta:"));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("Erro ao processar entrada:"));
     }
 
     private static PrintStream printStream(ByteArrayOutputStream outputStream) {

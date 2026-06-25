@@ -37,10 +37,11 @@ class FolderProcessorTest {
         assertEquals(2, result.getFilesProcessed());
         assertTrue(result.getProcessedFiles().contains(Path.of("first.html")));
         assertTrue(result.getProcessedFiles().contains(Path.of("second.htm")));
-        assertTrue(Files.exists(output.resolve("first.html")));
-        assertTrue(Files.exists(output.resolve("second.htm")));
-        assertFalse(readFile(output.resolve("first.html")).contains("550000000000"));
-        assertFalse(readFile(output.resolve("second.htm")).contains("551111111111"));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("first.html")));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("second.htm")));
+        assertFalse(Files.exists(output.resolve("first.html")));
+        assertFalse(readFile(output.resolve("input_anonimizado").resolve("first.html")).contains("550000000000"));
+        assertFalse(readFile(output.resolve("input_anonimizado").resolve("second.htm")).contains("551111111111"));
     }
 
     @Test
@@ -52,7 +53,7 @@ class FolderProcessorTest {
         FolderProcessingResult result = new FolderProcessor().processFolder(input, output);
 
         assertEquals(1, result.getHtmlFilesFound());
-        assertTrue(Files.exists(output.resolve("sub").resolve("deep").resolve("page.HTML")));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("sub").resolve("deep").resolve("page.HTML")));
     }
 
     @Test
@@ -65,7 +66,8 @@ class FolderProcessorTest {
         FolderProcessingResult result = new FolderProcessor().processFolder(input, output);
 
         assertEquals(List.of(relativePath), result.getProcessedFiles());
-        assertTrue(Files.exists(output.resolve(relativePath)));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve(relativePath)));
+        assertFalse(Files.exists(output.resolve("input_anonimizado").resolve("one_anonimizado")));
     }
 
     @Test
@@ -78,8 +80,8 @@ class FolderProcessorTest {
         FolderProcessingResult result = new FolderProcessor().processFolder(input, output);
 
         assertEquals(1, result.getHtmlFilesFound());
-        assertTrue(Files.exists(output.resolve("page.html")));
-        assertFalse(Files.exists(output.resolve("notes.txt")));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("page.html")));
+        assertFalse(Files.exists(output.resolve("input_anonimizado").resolve("notes.txt")));
     }
 
     @Test
@@ -104,8 +106,8 @@ class FolderProcessorTest {
 
         new FolderProcessor().processFolder(input, output);
 
-        String firstReplacement = firstPhone(readFile(output.resolve("first.html")));
-        String secondReplacement = firstPhone(readFile(output.resolve("second.html")));
+        String firstReplacement = firstPhone(readFile(output.resolve("input_anonimizado").resolve("first.html")));
+        String secondReplacement = firstPhone(readFile(output.resolve("input_anonimizado").resolve("second.html")));
         assertEquals(firstReplacement, secondReplacement);
         assertNotEquals("550000000000", firstReplacement);
     }
@@ -119,8 +121,8 @@ class FolderProcessorTest {
 
         new FolderProcessor().processFolder(input, output);
 
-        String firstReplacement = firstTicket(readFile(output.resolve("first.html")));
-        String secondReplacement = firstTicket(readFile(output.resolve("second.html")));
+        String firstReplacement = firstTicket(readFile(output.resolve("input_anonimizado").resolve("first.html")));
+        String secondReplacement = firstTicket(readFile(output.resolve("input_anonimizado").resolve("second.html")));
         assertEquals(firstReplacement, secondReplacement);
         assertNotEquals("0000001", firstReplacement);
     }
@@ -150,6 +152,19 @@ class FolderProcessorTest {
         );
 
         assertTrue(exception.getMessage().contains("not a directory"));
+    }
+
+    @Test
+    void shouldAllowOutputFolderToBeInputParentFolder() throws IOException {
+        Path input = createDirectory("clientes");
+        Path output = tempDir;
+        writeFile(input.resolve("a.html"), "<td>550000000000</td>");
+
+        new FolderProcessor().processFolder(input, output);
+
+        assertTrue(Files.exists(tempDir.resolve("clientes_anonimizado").resolve("a.html")));
+        assertFalse(Files.exists(tempDir.resolve("a.html")));
+        assertEquals("<td>550000000000</td>", readFile(input.resolve("a.html")));
     }
 
     @Test

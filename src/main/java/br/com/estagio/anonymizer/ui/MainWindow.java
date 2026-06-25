@@ -1,7 +1,7 @@
 package br.com.estagio.anonymizer.ui;
 
 import br.com.estagio.anonymizer.file.FolderProcessingResult;
-import br.com.estagio.anonymizer.file.FolderProcessor;
+import br.com.estagio.anonymizer.file.InputProcessor;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -32,6 +32,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 
 public class MainWindow extends JFrame {
@@ -45,15 +46,15 @@ public class MainWindow extends JFrame {
     private final JButton outputBrowseButton = new JButton("Selecionar...");
     private final JButton startButton = new JButton(START_BUTTON_TEXT);
     private final JTextArea logArea = new JTextArea();
-    private final FolderProcessor folderProcessor;
+    private final InputProcessor inputProcessor;
 
     public MainWindow() {
-        this(new FolderProcessor());
+        this(new InputProcessor());
     }
 
-    MainWindow(FolderProcessor folderProcessor) {
+    MainWindow(InputProcessor inputProcessor) {
         super("HTML Anonymizer");
-        this.folderProcessor = folderProcessor;
+        this.inputProcessor = inputProcessor;
         configureWindow();
         configureActions();
     }
@@ -73,7 +74,7 @@ public class MainWindow extends JFrame {
 
     private JPanel createTopPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 8));
-        panel.add(new JLabel("Selecione ou arraste as pastas de entrada e saida."), BorderLayout.NORTH);
+        panel.add(new JLabel("Selecione ou arraste um arquivo HTML ou pasta de entrada, e uma pasta de saida."), BorderLayout.NORTH);
         panel.add(createFormPanel(), BorderLayout.CENTER);
         return panel;
     }
@@ -84,7 +85,7 @@ public class MainWindow extends JFrame {
         constraints.insets = new Insets(4, 4, 4, 4);
         constraints.fill = GridBagConstraints.HORIZONTAL;
 
-        addRow(panel, constraints, 0, "Pasta de entrada:", inputFolderField, inputBrowseButton);
+        addRow(panel, constraints, 0, "Arquivo HTML ou pasta de entrada:", inputFolderField, inputBrowseButton);
         addRow(panel, constraints, 1, "Pasta de saida:", outputFolderField, outputBrowseButton);
 
         return panel;
@@ -123,11 +124,29 @@ public class MainWindow extends JFrame {
     }
 
     private void configureActions() {
-        inputBrowseButton.addActionListener(event -> chooseDirectory(inputFolderField, "Selecionar pasta de entrada"));
+        inputBrowseButton.addActionListener(event -> chooseInputPath());
         outputBrowseButton.addActionListener(event -> chooseDirectory(outputFolderField, "Selecionar pasta de saida"));
         startButton.addActionListener(event -> startProcessing());
-        configureDropTarget(inputFolderField, "entrada");
-        configureDropTarget(outputFolderField, "saida");
+        configureDropTarget(inputFolderField, "entrada", true);
+        configureDropTarget(outputFolderField, "saida", false);
+    }
+
+    private void chooseInputPath() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Selecionar arquivo HTML ou pasta de entrada");
+        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+        chooser.setAcceptAllFileFilterUsed(true);
+
+        int result = chooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            Path selectedPath = chooser.getSelectedFile().toPath();
+            if (Files.isRegularFile(selectedPath) && !hasHtmlExtension(selectedPath)) {
+                showValidationError("Selecione um arquivo .html/.htm ou uma pasta: " + selectedPath);
+                return;
+            }
+
+            inputFolderField.setText(selectedPath.toString());
+        }
     }
 
     private void chooseDirectory(JTextField targetField, String title) {
@@ -142,8 +161,8 @@ public class MainWindow extends JFrame {
         }
     }
 
-    private void configureDropTarget(JTextField targetField, String fieldName) {
-        targetField.setToolTipText("Arraste uma pasta para preencher este campo.");
+    private void configureDropTarget(JTextField targetField, String fieldName, boolean acceptsHtmlFile) {
+        targetField.setToolTipText(acceptsHtmlFile ? "Arraste uma pasta ou arquivo HTML para preencher este campo." : "Arraste uma pasta para preencher este campo.");
         targetField.setTransferHandler(new TransferHandler() {
             @Override
             public boolean canImport(TransferSupport support) {
@@ -159,18 +178,21 @@ public class MainWindow extends JFrame {
                 try {
                     List<File> files = readDroppedFiles(support.getTransferable());
                     if (files.size() != 1) {
-                        showDropError("Arraste apenas uma pasta para o campo de " + fieldName + ".");
+                        String expected = acceptsHtmlFile ? "um arquivo HTML ou uma pasta" : "uma pasta";
+                        showDropError("Arraste apenas " + expected + " para o campo de " + fieldName + ".");
                         return false;
                     }
 
                     File droppedFile = files.get(0);
-                    if (!droppedFile.isDirectory()) {
-                        showDropError("O item arrastado para " + fieldName + " nao e uma pasta: " + droppedFile);
+                    if (!isValidDroppedInput(droppedFile, acceptsHtmlFile)) {
+                        String expected = acceptsHtmlFile ? "uma pasta ou arquivo .html/.htm" : "uma pasta";
+                        showDropError("O item arrastado para " + fieldName + " deve ser " + expected + ": " + droppedFile);
                         return false;
                     }
 
                     targetField.setText(droppedFile.toPath().toString());
-                    appendLog("Pasta de " + fieldName + " selecionada por arrastar e soltar: " + droppedFile.toPath());
+                    String logPrefix = acceptsHtmlFile ? "Entrada selecionada" : "Pasta de saida selecionada";
+                    appendLog(logPrefix + " por arrastar e soltar: " + droppedFile.toPath());
                     return true;
                 } catch (IOException | UnsupportedFlavorException exception) {
                     showDropError("Nao foi possivel ler o item arrastado: " + exception.getMessage());
@@ -185,15 +207,23 @@ public class MainWindow extends JFrame {
         return (List<File>) transferable.getTransferData(DataFlavor.javaFileListFlavor);
     }
 
+    private boolean isValidDroppedInput(File droppedFile, boolean acceptsHtmlFile) {
+        if (droppedFile.isDirectory()) {
+            return true;
+        }
+
+        return acceptsHtmlFile && droppedFile.isFile() && hasHtmlExtension(droppedFile.toPath());
+    }
+
     private void startProcessing() {
         logArea.setText("");
 
-        Path inputFolder;
+        Path inputPath;
         Path outputFolder;
         try {
-            inputFolder = readPath(inputFolderField, "A pasta de entrada nao pode estar vazia.");
+            inputPath = readPath(inputFolderField, "A entrada nao pode estar vazia.");
             outputFolder = readPath(outputFolderField, "A pasta de saida nao pode estar vazia.");
-            validateBeforeProcessing(inputFolder, outputFolder);
+            validateBeforeProcessing(inputPath, outputFolder);
         } catch (IllegalArgumentException exception) {
             showValidationError(exception.getMessage());
             return;
@@ -206,9 +236,9 @@ public class MainWindow extends JFrame {
             @Override
             protected FolderProcessingResult doInBackground() throws Exception {
                 appendLog("Inicio do processamento: " + formatDateTime(startTime));
-                appendLog("Pasta de entrada: " + inputFolder);
+                appendLog("Entrada: " + inputPath);
                 appendLog("Pasta de saida: " + outputFolder);
-                return folderProcessor.processFolder(inputFolder, outputFolder);
+                return inputProcessor.processInput(inputPath, outputFolder);
             }
 
             @Override
@@ -254,24 +284,36 @@ public class MainWindow extends JFrame {
         }
     }
 
-    private void validateBeforeProcessing(Path inputFolder, Path outputFolder) {
-        if (!Files.exists(inputFolder)) {
-            throw new IllegalArgumentException("A pasta de entrada nao existe: " + inputFolder);
+    private void validateBeforeProcessing(Path inputPath, Path outputFolder) {
+        if (!Files.exists(inputPath)) {
+            throw new IllegalArgumentException("A entrada nao existe: " + inputPath);
         }
 
-        if (!Files.isDirectory(inputFolder)) {
-            throw new IllegalArgumentException("A pasta de entrada deve ser um diretorio: " + inputFolder);
+        if (Files.isRegularFile(inputPath) && !hasHtmlExtension(inputPath)) {
+            throw new IllegalArgumentException("O arquivo de entrada deve ter extensao .html ou .htm: " + inputPath);
         }
 
-        Path normalizedInput = inputFolder.toAbsolutePath().normalize();
+        if (!Files.isRegularFile(inputPath) && !Files.isDirectory(inputPath)) {
+            throw new IllegalArgumentException("A entrada deve ser um arquivo HTML ou uma pasta: " + inputPath);
+        }
+
+        if (Files.exists(outputFolder) && !Files.isDirectory(outputFolder)) {
+            throw new IllegalArgumentException("A saida deve ser uma pasta: " + outputFolder);
+        }
+
+        Path normalizedInput = inputPath.toAbsolutePath().normalize();
         Path normalizedOutput = outputFolder.toAbsolutePath().normalize();
 
         if (normalizedOutput.equals(normalizedInput)) {
-            throw new IllegalArgumentException("A pasta de saida nao pode ser igual a pasta de entrada.");
+            throw new IllegalArgumentException("A pasta de saida nao pode ser igual a entrada.");
         }
 
-        if (normalizedOutput.startsWith(normalizedInput)) {
+        if (Files.isDirectory(inputPath) && normalizedOutput.startsWith(normalizedInput)) {
             throw new IllegalArgumentException("A pasta de saida nao pode estar dentro da pasta de entrada.");
+        }
+
+        if (Files.isRegularFile(inputPath) && normalizedOutput.resolve(inputPath.getFileName()).equals(normalizedInput)) {
+            throw new IllegalArgumentException("A saida nao pode sobrescrever o arquivo original.");
         }
     }
 
@@ -308,6 +350,16 @@ public class MainWindow extends JFrame {
         }
 
         return remainingSeconds + "s";
+    }
+
+    private boolean hasHtmlExtension(Path file) {
+        Path fileName = file.getFileName();
+        if (fileName == null) {
+            return false;
+        }
+
+        String lowerCaseName = fileName.toString().toLowerCase(Locale.ROOT);
+        return lowerCaseName.endsWith(".html") || lowerCaseName.endsWith(".htm");
     }
 
     private void appendLog(String message) {

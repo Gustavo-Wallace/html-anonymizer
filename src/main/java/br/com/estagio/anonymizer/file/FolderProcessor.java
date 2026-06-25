@@ -11,6 +11,8 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 public class FolderProcessor {
+    private static final String OUTPUT_FOLDER_SUFFIX = "_anonimizado";
+
     private final HtmlFileProcessor htmlFileProcessor;
 
     public FolderProcessor() {
@@ -36,10 +38,11 @@ public class FolderProcessor {
                     .toList();
         }
 
+        Path outputRootFolder = resolveOutputRootFolder(inputFolder, outputFolder);
         HtmlAnonymizer anonymizer = new HtmlAnonymizer();
         for (Path htmlFile : htmlFiles) {
             Path relativePath = inputFolder.relativize(htmlFile);
-            Path outputFile = outputFolder.resolve(relativePath);
+            Path outputFile = outputRootFolder.resolve(relativePath);
             htmlFileProcessor.processFile(htmlFile, outputFile, anonymizer);
         }
 
@@ -48,6 +51,15 @@ public class FolderProcessor {
                 .toList();
 
         return new FolderProcessingResult(htmlFiles.size(), htmlFiles.size(), processedFiles);
+    }
+
+    private Path resolveOutputRootFolder(Path inputFolder, Path outputFolder) {
+        Path inputFolderName = inputFolder.getFileName();
+        if (inputFolderName == null) {
+            throw new IllegalArgumentException("Input folder name is invalid: " + inputFolder);
+        }
+
+        return outputFolder.resolve(inputFolderName + OUTPUT_FOLDER_SUFFIX);
     }
 
     private void validateFolders(Path inputFolder, Path outputFolder) throws IOException {
