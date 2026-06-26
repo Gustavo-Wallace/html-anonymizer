@@ -24,7 +24,7 @@ public class TicketAnonymizer {
 
         while (matcher.find()) {
             String ticket = matcher.group(3);
-            String replacement = replacements.computeIfAbsent(ticket, this::createReplacement);
+            String replacement = anonymizeTicketValue(ticket);
             matcher.appendReplacement(
                     result,
                     Matcher.quoteReplacement(matcher.group(1) + matcher.group(2) + replacement)
@@ -33,6 +33,10 @@ public class TicketAnonymizer {
 
         matcher.appendTail(result);
         return result.toString();
+    }
+
+    String anonymizeTicketValue(String ticket) {
+        return replacements.computeIfAbsent(ticket, this::createReplacement);
     }
 
     private String createReplacement(String originalTicket) {

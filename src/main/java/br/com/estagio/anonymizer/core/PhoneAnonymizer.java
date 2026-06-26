@@ -12,6 +12,10 @@ import java.util.regex.Pattern;
 public class PhoneAnonymizer {
     private static final Pattern PHONE_PATTERN = Pattern.compile("(?<![\\d+])\\+?\\d(?:[ -]?\\d){7,14}(?!\\d)");
     private static final Pattern TICKET_PREFIX_PATTERN = Pattern.compile("Internal Ticket Number[\\t ]*:?[\\t ]*$");
+    private static final Pattern TICKET_TABLE_PREFIX_PATTERN = Pattern.compile(
+            "(?is)<tr\\b[^>]*>(?:(?!</tr>).)*<th\\b[^>]*>\\s*Internal Ticket Number\\s*</th\\s*>"
+                    + "(?:(?!</tr>).)*<td\\b[^>]*>[^<]*$"
+    );
 
     private final Map<String, String> replacements = new HashMap<>();
     private final Set<String> usedReplacements = new HashSet<>();
@@ -50,7 +54,9 @@ public class PhoneAnonymizer {
     }
 
     private boolean isInternalTicketNumber(String input, int phoneStart) {
-        return TICKET_PREFIX_PATTERN.matcher(input.substring(0, phoneStart)).find();
+        String prefix = input.substring(0, phoneStart);
+        return TICKET_PREFIX_PATTERN.matcher(prefix).find()
+                || TICKET_TABLE_PREFIX_PATTERN.matcher(prefix).find();
     }
 
     private String createReplacement(String originalDigits) {

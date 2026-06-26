@@ -12,9 +12,22 @@ O programa processa um arquivo HTML individual ou uma pasta inteira com arquivos
 - O mesmo telefone recebe sempre o mesmo valor anonimizado durante uma execucao.
 - Valores de `Internal Ticket Number` sao anonimizados apenas no numero apos esse texto.
 - O mesmo ticket recebe sempre o mesmo valor anonimizado durante uma execucao.
+- Em HTMLs com campos em tabela, os campos `Internal Ticket Number`, `Description` e `Subject` tambem sao anonimizados quando aparecem em linhas `<tr>` com o nome do campo em `<th>` e o valor em `<td>`.
 - Arquivos originais nunca sao modificados.
 - Arquivos que nao sejam `.html` ou `.htm` nao sao copiados.
 - O programa nao gera CSV.
+
+## Campos em tabela
+
+O programa tambem trata campos comuns em HTMLs com estrutura de tabela:
+
+```html
+<tr><th>Internal Ticket Number</th><td>0000001<br /></td></tr>
+<tr><th>Description</th><td>Texto sensivel de exemplo<br /></td></tr>
+<tr><th>Subject</th><td>Grupo de exemplo<br /></td></tr>
+```
+
+Nesses casos, apenas o conteudo do `<td>` correspondente e anonimizado. A estrutura HTML, incluindo `<tr>`, `<th>`, `<td>` e tags como `<br />`, e preservada.
 
 ## Uso pela interface grafica
 
