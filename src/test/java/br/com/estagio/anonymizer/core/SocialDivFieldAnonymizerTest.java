@@ -1,5 +1,8 @@
 package br.com.estagio.anonymizer.core;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.Test;
 
 import java.util.regex.Matcher;
@@ -74,6 +77,37 @@ class SocialDivFieldAnonymizerTest {
     }
 
     @Test
+    void shouldAnonymizeNestedVanityNameAndPreserveAuxiliaryDiv() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Vanity Name</div>"
+                        + "<div class=\"m\"><div>usuario_ficticio<div class=\"p\"></div></div></div>"
+        );
+        String replacement = valueAfterStructuredLabel(result, "Vanity Name");
+
+        assertNotEquals("usuario_ficticio", replacement);
+        assertTrue(replacement.matches("profile_[a-z0-9]+"));
+        assertTrue(result.contains("<div class=\"p\"></div>"));
+        assertTrue(result.contains("Vanity Name"));
+    }
+
+    @Test
+    void shouldAnonymizeNestedAccountIdentifier() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Account Identifier</div>"
+                        + "<div class=\"m\"><div>https://www.instagram.com/usuario_ficticio</div></div>"
+        );
+        String replacement = valueAfterStructuredLabel(result, "Account Identifier");
+
+        assertNotEquals("https://www.instagram.com/usuario_ficticio", replacement);
+        assertTrue(replacement.matches("https://www\\.instagram\\.com/profile_[a-z0-9]+"));
+        assertTrue(result.contains("Account Identifier"));
+    }
+
+    @Test
     void shouldAnonymizeNameFirstSequence() {
         SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
 
@@ -86,6 +120,26 @@ class SocialDivFieldAnonymizerTest {
         assertTrue(replacement.matches("[A-Za-z]+"));
         assertTrue(result.contains("<div>Name</div>"));
         assertTrue(result.contains("<div>First</div>"));
+    }
+
+    @Test
+    void shouldAnonymizeNestedNameFirstSequence() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Name</div>"
+                        + "<div class=\"m\">"
+                        + "<div class=\"t i\">First</div>"
+                        + "<div class=\"m\"><div>Joao Ficticio<div class=\"p\"></div></div></div>"
+                        + "</div>"
+        );
+        String replacement = valueAfterStructuredLabel(result, "First");
+
+        assertNotEquals("Joao Ficticio", replacement);
+        assertTrue(replacement.matches("[A-Za-z]+"));
+        assertTrue(result.contains("Name"));
+        assertTrue(result.contains("First"));
+        assertTrue(result.contains("<div class=\"p\"></div>"));
     }
 
     @Test
@@ -106,6 +160,22 @@ class SocialDivFieldAnonymizerTest {
     }
 
     @Test
+    void shouldAnonymizeNestedLast() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Last</div>"
+                        + "<div class=\"m\"><div>Exemplo<div class=\"p\"></div></div></div>"
+        );
+        String replacement = valueAfterStructuredLabel(result, "Last");
+
+        assertNotEquals("Exemplo", replacement);
+        assertTrue(replacement.matches("[A-Za-z]+"));
+        assertTrue(result.contains("Last"));
+        assertTrue(result.contains("<div class=\"p\"></div>"));
+    }
+
+    @Test
     void shouldAnonymizeMiddleNameFullNameSequence() {
         SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
 
@@ -118,6 +188,60 @@ class SocialDivFieldAnonymizerTest {
         assertTrue(replacement.matches("[A-Za-z]+ [A-Za-z]+"));
         assertTrue(result.contains("<div>Middle Name</div>"));
         assertTrue(result.contains("<div>Full Name</div>"));
+    }
+
+    @Test
+    void shouldAnonymizeNestedFullName() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Middle Name</div>"
+                        + "<div class=\"m\">"
+                        + "<div class=\"t i\">Full Name</div>"
+                        + "<div class=\"m\"><div>Nome Completo Ficticio<div class=\"p\"></div></div></div>"
+                        + "</div>"
+        );
+        String replacement = valueAfterStructuredLabel(result, "Full Name");
+
+        assertNotEquals("Nome Completo Ficticio", replacement);
+        assertTrue(replacement.matches("[A-Za-z]+ [A-Za-z]+"));
+        assertTrue(result.contains("Middle Name"));
+        assertTrue(result.contains("Full Name"));
+        assertTrue(result.contains("<div class=\"p\"></div>"));
+    }
+
+    @Test
+    void shouldAnonymizeNestedEmailAndRegisteredEmailAddresses() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Email</div>"
+                        + "<div class=\"m\"><div>conta.ficticia@example.com</div></div>"
+                        + "<div class=\"t i\">Registered Email Addresses</div>"
+                        + "<div class=\"m\"><div>usuario.ficticio@example.com (Verified)</div></div>"
+        );
+        String email = valueAfterStructuredLabel(result, "Email");
+        String registeredEmail = valueAfterStructuredLabel(result, "Registered Email Addresses");
+
+        assertNotEquals("conta.ficticia@example.com", email);
+        assertTrue(email.matches("user_[a-z0-9]+@example\\.com"));
+        assertNotEquals("usuario.ficticio@example.com (Verified)", registeredEmail);
+        assertTrue(registeredEmail.matches("user_[a-z0-9]+@example\\.com \\(Verified\\)"));
+        assertTrue(result.contains("Email"));
+        assertTrue(result.contains("Registered Email Addresses"));
+    }
+
+    @Test
+    void shouldAnonymizeNumericTargetInStructuredSocialField() {
+        HtmlAnonymizer anonymizer = new HtmlAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Target</div><div class=\"m\"><div>0000000000</div></div>"
+        );
+        String replacement = valueAfterStructuredLabel(result, "Target");
+
+        assertEquals("0000000001", replacement);
+        assertTrue(result.contains("Target"));
     }
 
     @Test
@@ -208,5 +332,24 @@ class SocialDivFieldAnonymizerTest {
         ).matcher(html);
         assertTrue(matcher.find());
         return matcher.group(1).trim();
+    }
+
+    private static String valueAfterStructuredLabel(String html, String label) {
+        Document document = Jsoup.parseBodyFragment(html);
+        for (Element labelElement : document.select("div")) {
+            if (!labelElement.ownText().trim().equalsIgnoreCase(label)) {
+                continue;
+            }
+
+            Element valueElement = labelElement.nextElementSibling();
+            while (valueElement != null && !valueElement.hasClass("m")) {
+                valueElement = valueElement.nextElementSibling();
+            }
+
+            assertTrue(valueElement != null);
+            return valueElement.text().trim();
+        }
+
+        throw new AssertionError("Label not found: " + label);
     }
 }

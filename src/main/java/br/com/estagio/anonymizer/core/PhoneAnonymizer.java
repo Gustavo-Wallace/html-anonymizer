@@ -2,6 +2,7 @@ package br.com.estagio.anonymizer.core;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -18,6 +19,9 @@ public class PhoneAnonymizer {
     );
     private static final Pattern TARGET_DIV_PREFIX_PATTERN = Pattern.compile(
             "(?is)<div\\b[^>]*>\\s*Target\\s*</div\\s*>\\s*<div\\b[^>]*>[^<]*$"
+    );
+    private static final Pattern SOCIAL_LABEL_PATTERN = Pattern.compile(
+            "(?is)<div\\b[^>]*>\\s*(Target|Account Identifier|Registered Email Addresses|Email|Vanity Name|First|Last|Full Name)\\s*</div\\s*>"
     );
 
     private final Map<String, String> replacements = new HashMap<>();
@@ -60,7 +64,29 @@ public class PhoneAnonymizer {
         String prefix = input.substring(0, phoneStart);
         return TICKET_PREFIX_PATTERN.matcher(prefix).find()
                 || TICKET_TABLE_PREFIX_PATTERN.matcher(prefix).find()
-                || TARGET_DIV_PREFIX_PATTERN.matcher(prefix).find();
+                || TARGET_DIV_PREFIX_PATTERN.matcher(prefix).find()
+                || isSocialTargetValue(prefix);
+    }
+
+    private boolean isSocialTargetValue(String prefix) {
+        if (!isInsideOpenDiv(prefix)) {
+            return false;
+        }
+
+        Matcher matcher = SOCIAL_LABEL_PATTERN.matcher(prefix);
+        String lastLabel = null;
+        while (matcher.find()) {
+            lastLabel = matcher.group(1);
+        }
+
+        return "Target".equalsIgnoreCase(lastLabel);
+    }
+
+    private boolean isInsideOpenDiv(String prefix) {
+        String lowerCasePrefix = prefix.toLowerCase(Locale.ROOT);
+        int lastOpenDiv = lowerCasePrefix.lastIndexOf("<div");
+        int lastCloseDiv = lowerCasePrefix.lastIndexOf("</div");
+        return lastOpenDiv > lastCloseDiv;
     }
 
     private String createReplacement(String originalDigits) {

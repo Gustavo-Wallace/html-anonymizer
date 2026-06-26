@@ -107,7 +107,7 @@ class HtmlAnonymizerTest {
         String result = anonymizer.anonymize(
                 "<div>Target</div><div>0000000000</div>"
                         + "<div>Email</div><div>conta.ficticia@example.com</div>"
-                        + "<tr><th>Description</th><td>Texto sensivel de exemplo<br /></td></tr>"
+                        + "<table><tr><th>Description</th><td>Texto sensivel de exemplo<br /></td></tr></table>"
                         + "<p>Telefone 550000000000</p>"
         );
 
@@ -118,7 +118,8 @@ class HtmlAnonymizerTest {
         assertFalse(result.contains("550000000000"));
         assertTrue(result.contains("<div>Target</div>"));
         assertTrue(result.contains("<div>Email</div>"));
-        assertTrue(result.contains("<tr><th>Description</th><td>"));
+        assertTrue(result.contains("<table>"));
+        assertTrue(result.contains("<th>Description</th><td>"));
         assertTrue(result.matches("(?s).*<p>Telefone \\d{12}</p>.*"));
     }
 

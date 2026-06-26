@@ -13,7 +13,7 @@ O programa processa um arquivo HTML individual ou uma pasta inteira com arquivos
 - Valores de `Internal Ticket Number` sao anonimizados apenas no numero apos esse texto.
 - O mesmo ticket recebe sempre o mesmo valor anonimizado durante uma execucao.
 - Em HTMLs com campos em tabela, os campos `Internal Ticket Number`, `Description` e `Subject` tambem sao anonimizados quando aparecem em linhas `<tr>` com o nome do campo em `<th>` e o valor em `<td>`.
-- Em HTMLs de Instagram/Facebook com campos em `<div>`, valores como `Target`, `Account Identifier`, e-mails, nomes e `Vanity Name` tambem sao anonimizados.
+- Em HTMLs de Instagram/Facebook com campos em `<div>`, inclusive estruturas aninhadas com labels e valores separados, valores como `Target`, `Account Identifier`, e-mails, nomes e `Vanity Name` tambem sao anonimizados.
 - Arquivos originais nunca sao modificados.
 - Arquivos que nao sejam `.html` ou `.htm` nao sao copiados.
 - O programa nao gera CSV.
@@ -32,7 +32,7 @@ Nesses casos, apenas o conteudo do `<td>` correspondente e anonimizado. A estrut
 
 ## Campos em div
 
-O programa tambem suporta HTMLs de Instagram/Facebook em que o nome do campo aparece em um `<div>` e o valor no `<div>` seguinte:
+O programa tambem suporta HTMLs de Instagram/Facebook em que o nome do campo aparece em um `<div>` e o valor no `<div>` seguinte, inclusive quando o valor esta aninhado em estruturas como `div class="m"`:
 
 ```html
 <div>Target</div>
@@ -47,6 +47,9 @@ O programa tambem suporta HTMLs de Instagram/Facebook em que o nome do campo apa
 <div>Name</div>
 <div>First</div>
 <div>Joao Ficticio</div>
+
+<div class="t i">Vanity Name</div>
+<div class="m"><div>usuario_ficticio<div class="p"></div></div></div>
 ```
 
 Tambem sao tratados campos como `Email`, `Vanity Name`, `Last` e a sequencia `Middle Name` / `Full Name`. Os labels sao preservados e apenas os valores correspondentes sao substituidos por dados ficticios.

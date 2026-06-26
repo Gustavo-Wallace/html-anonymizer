@@ -1,21 +1,35 @@
 package br.com.estagio.anonymizer.core;
 
-import java.util.ArrayList;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Node;
+import org.jsoup.nodes.TextNode;
+
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 class SocialDivFieldAnonymizer {
-    private static final Pattern DIV_PATTERN = Pattern.compile("(?is)(<div\\b[^>]*>)(.*?)(</div\\s*>)");
-    private static final Pattern TAG_PATTERN = Pattern.compile("(?is)<[^>]+>");
     private static final Pattern INSTAGRAM_OR_FACEBOOK_URL = Pattern.compile(
             "(?i)^(https?://(?:www\\.)?(?:instagram|facebook)\\.com/)([^/?#]+)(.*)$"
     );
     private static final Pattern EMAIL_WITH_SUFFIX = Pattern.compile("^([^\\s()]+@[^\\s()]+)(.*)$");
+    private static final Pattern HTML_DOCUMENT_PATTERN = Pattern.compile("(?is)<\\s*html\\b");
+    private static final String[] SUPPORTED_LABELS = {
+            "target",
+            "account identifier",
+            "registered email addresses",
+            "email",
+            "vanity name",
+            "first",
+            "last",
+            "full name"
+    };
 
     private static final String[] FIRST_NAMES = {
             "Ana", "Bruno", "Carla", "Diego", "Maria", "Pedro", "Laura", "Rafael", "Julia", "Lucas"
@@ -50,117 +64,212 @@ class SocialDivFieldAnonymizer {
             return null;
         }
 
-        List<DivElement> divs = findDivs(input);
-        if (divs.isEmpty()) {
+        if (!mayContainSupportedSocialField(input)) {
             return input;
         }
 
-        Map<Integer, String> replacementsByDivIndex = new HashMap<>();
-        for (int i = 0; i < divs.size(); i++) {
-            String label = divs.get(i).visibleText();
+        boolean fullDocument = HTML_DOCUMENT_PATTERN.matcher(input).find();
+        Document document = fullDocument ? Jsoup.parse(input) : Jsoup.parseBodyFragment(input);
+        document.outputSettings().prettyPrint(false);
 
-            if (isLabel(label, "Target")) {
-                replaceNextValue(divs, replacementsByDivIndex, i, targetReplacements, this::createTargetReplacement);
-            } else if (isLabel(label, "Account Identifier")) {
-                replaceNextValue(
-                        divs,
-                        replacementsByDivIndex,
-                        i,
-                        accountIdentifierReplacements,
-                        this::createAccountIdentifierReplacement
-                );
-            } else if (isLabel(label, "Registered Email Addresses")) {
-                replaceNextValue(divs, replacementsByDivIndex, i, emailReplacements, this::createEmailReplacement);
-            } else if (isLabel(label, "Email")) {
-                replaceNextValue(divs, replacementsByDivIndex, i, emailReplacements, this::createEmailReplacement);
-            } else if (isLabel(label, "Vanity Name")) {
-                replaceNextValue(divs, replacementsByDivIndex, i, vanityNameReplacements, this::createVanityNameReplacement);
-            } else if (isLabel(label, "Name") && hasNextLabel(divs, i, "First")) {
-                replaceValueAt(divs, replacementsByDivIndex, i + 2, firstNameReplacements, this::createFirstNameReplacement);
-            } else if (isLabel(label, "Last")) {
-                replaceNextValue(divs, replacementsByDivIndex, i, lastNameReplacements, this::createLastNameReplacement);
-            } else if (isLabel(label, "Middle Name") && hasNextLabel(divs, i, "Full Name")) {
-                replaceValueAt(divs, replacementsByDivIndex, i + 2, fullNameReplacements, this::createFullNameReplacement);
+        for (Element label : document.select("div")) {
+            anonymizeLabel(label);
+        }
+
+        return fullDocument ? document.outerHtml() : document.body().html();
+    }
+
+    private boolean mayContainSupportedSocialField(String input) {
+        String lowerCaseInput = input.toLowerCase(Locale.ROOT);
+        if (!lowerCaseInput.contains("<div")) {
+            return false;
+        }
+
+        for (String label : SUPPORTED_LABELS) {
+            if (lowerCaseInput.contains(label)) {
+                return true;
             }
         }
 
-        return rebuild(input, divs, replacementsByDivIndex);
+        return false;
     }
 
-    private List<DivElement> findDivs(String input) {
-        Matcher matcher = DIV_PATTERN.matcher(input);
-        List<DivElement> divs = new ArrayList<>();
-
-        while (matcher.find()) {
-            divs.add(new DivElement(
-                    matcher.start(),
-                    matcher.end(),
-                    matcher.group(1),
-                    matcher.group(2),
-                    matcher.group(3)
-            ));
-        }
-
-        return divs;
-    }
-
-    private void replaceNextValue(
-            List<DivElement> divs,
-            Map<Integer, String> replacementsByDivIndex,
-            int labelIndex,
-            Map<String, String> replacements,
-            ReplacementFactory replacementFactory
-    ) {
-        replaceValueAt(divs, replacementsByDivIndex, labelIndex + 1, replacements, replacementFactory);
-    }
-
-    private void replaceValueAt(
-            List<DivElement> divs,
-            Map<Integer, String> replacementsByDivIndex,
-            int valueIndex,
-            Map<String, String> replacements,
-            ReplacementFactory replacementFactory
-    ) {
-        if (valueIndex >= divs.size()) {
+    private void anonymizeLabel(Element label) {
+        FieldType fieldType = fieldTypeFor(label);
+        if (fieldType == null) {
             return;
         }
 
-        DivElement value = divs.get(valueIndex);
-        String original = value.visibleText();
+        Element valueElement = findValueElement(label);
+        if (valueElement == null) {
+            return;
+        }
+
+        String original = valueElement.text().trim();
         if (original.isEmpty()) {
             return;
         }
 
-        String replacement = replacements.computeIfAbsent(original, replacementFactory::create);
-        replacementsByDivIndex.put(valueIndex, value.withContent(replacement));
+        String replacement = replacementFor(fieldType, original);
+        replaceFirstTextNode(valueElement, replacement);
     }
 
-    private String rebuild(String input, List<DivElement> divs, Map<Integer, String> replacementsByDivIndex) {
-        StringBuilder result = new StringBuilder(input.length());
-        int last = 0;
+    private FieldType fieldTypeFor(Element label) {
+        String labelText = normalizedText(label);
 
-        for (int i = 0; i < divs.size(); i++) {
-            DivElement div = divs.get(i);
-            result.append(input, last, div.start());
-            result.append(replacementsByDivIndex.getOrDefault(i, div.original()));
-            last = div.end();
+        if (isLabel(labelText, "Target")) {
+            return FieldType.TARGET;
         }
 
-        result.append(input.substring(last));
-        return result.toString();
+        if (isLabel(labelText, "Account Identifier")) {
+            return FieldType.ACCOUNT_IDENTIFIER;
+        }
+
+        if (isLabel(labelText, "Registered Email Addresses") || isLabel(labelText, "Email")) {
+            return FieldType.EMAIL;
+        }
+
+        if (isLabel(labelText, "Vanity Name")) {
+            return FieldType.VANITY_NAME;
+        }
+
+        if (isLabel(labelText, "First")) {
+            return FieldType.FIRST_NAME;
+        }
+
+        if (isLabel(labelText, "Last")) {
+            return FieldType.LAST_NAME;
+        }
+
+        if (isLabel(labelText, "Full Name")) {
+            return FieldType.FULL_NAME;
+        }
+
+        return null;
     }
 
-    private boolean hasNextLabel(List<DivElement> divs, int index, String expectedLabel) {
-        return index + 1 < divs.size() && isLabel(divs.get(index + 1).visibleText(), expectedLabel);
+    private Element findValueElement(Element label) {
+        Element structuredValue = findStructuredValueElement(label);
+        if (structuredValue != null) {
+            return structuredValue;
+        }
+
+        return findNextDivValueElement(label);
+    }
+
+    private Element findStructuredValueElement(Element label) {
+        if (!label.hasClass("t") || !label.hasClass("i")) {
+            return null;
+        }
+
+        Element siblingValue = firstNextElementSiblingWithClass(label, "m");
+        if (siblingValue != null) {
+            return siblingValue;
+        }
+
+        Element parent = label.parent();
+        if (parent == null) {
+            return null;
+        }
+
+        Element parentSiblingValue = firstNextElementSiblingWithClass(parent, "m");
+        if (parentSiblingValue != null) {
+            return parentSiblingValue;
+        }
+
+        boolean afterLabel = false;
+        for (Element child : parent.children()) {
+            if (child == label) {
+                afterLabel = true;
+                continue;
+            }
+
+            if (afterLabel && child.hasClass("m")) {
+                return child;
+            }
+        }
+
+        return null;
+    }
+
+    private Element firstNextElementSiblingWithClass(Element element, String className) {
+        Element sibling = element.nextElementSibling();
+        while (sibling != null) {
+            if (sibling.hasClass(className)) {
+                return sibling;
+            }
+
+            if (isPotentialFieldLabel(sibling)) {
+                return null;
+            }
+
+            sibling = sibling.nextElementSibling();
+        }
+
+        return null;
+    }
+
+    private Element findNextDivValueElement(Element label) {
+        Element next = label.nextElementSibling();
+        while (next != null) {
+            if ("div".equalsIgnoreCase(next.tagName())) {
+                return next;
+            }
+
+            next = next.nextElementSibling();
+        }
+
+        return null;
+    }
+
+    private boolean isPotentialFieldLabel(Element element) {
+        return element.hasClass("t") && element.hasClass("i") && fieldTypeFor(element) != null;
+    }
+
+    private boolean replaceFirstTextNode(Element valueElement, String replacement) {
+        for (TextNode textNode : valueElement.textNodes()) {
+            if (!textNode.text().trim().isEmpty()) {
+                textNode.text(replacement);
+                return true;
+            }
+        }
+
+        for (Node child : valueElement.childNodes()) {
+            if (child instanceof Element childElement && replaceFirstTextNode(childElement, replacement)) {
+                return true;
+            }
+        }
+
+        valueElement.text(replacement);
+        return true;
+    }
+
+    private String replacementFor(FieldType fieldType, String original) {
+        return switch (fieldType) {
+            case TARGET -> targetReplacements.computeIfAbsent(original, this::createTargetReplacement);
+            case ACCOUNT_IDENTIFIER -> accountIdentifierReplacements.computeIfAbsent(
+                    original,
+                    this::createAccountIdentifierReplacement
+            );
+            case EMAIL -> emailReplacements.computeIfAbsent(original, this::createEmailReplacement);
+            case VANITY_NAME -> vanityNameReplacements.computeIfAbsent(original, this::createVanityNameReplacement);
+            case FIRST_NAME -> firstNameReplacements.computeIfAbsent(original, this::createFirstNameReplacement);
+            case LAST_NAME -> lastNameReplacements.computeIfAbsent(original, this::createLastNameReplacement);
+            case FULL_NAME -> fullNameReplacements.computeIfAbsent(original, this::createFullNameReplacement);
+        };
+    }
+
+    private String normalizedText(Element element) {
+        String ownText = element.ownText().replaceAll("\\s+", " ").trim();
+        if (!ownText.isEmpty() || !element.hasClass("t") || !element.hasClass("i")) {
+            return ownText;
+        }
+
+        return element.text().replaceAll("\\s+", " ").trim();
     }
 
     private boolean isLabel(String value, String expected) {
         return value.equalsIgnoreCase(expected);
-    }
-
-    private String visibleText(String html) {
-        String withoutTags = TAG_PATTERN.matcher(html).replaceAll(" ");
-        return withoutTags.replaceAll("\\s+", " ").trim();
     }
 
     private String createTargetReplacement(String original) {
@@ -253,7 +362,7 @@ class SocialDivFieldAnonymizer {
     }
 
     private String nextToken() {
-        String token = Integer.toString(nextToken, 36);
+        String token = Integer.toString(nextToken, 36).toLowerCase(Locale.ROOT);
         nextToken++;
         return token;
     }
@@ -267,43 +376,13 @@ class SocialDivFieldAnonymizer {
         return "0".repeat(length - digits.length()) + digits;
     }
 
-    private class DivElement {
-        private final int start;
-        private final int end;
-        private final String openingTag;
-        private final String content;
-        private final String closingTag;
-
-        DivElement(int start, int end, String openingTag, String content, String closingTag) {
-            this.start = start;
-            this.end = end;
-            this.openingTag = openingTag;
-            this.content = content;
-            this.closingTag = closingTag;
-        }
-
-        int start() {
-            return start;
-        }
-
-        int end() {
-            return end;
-        }
-
-        String visibleText() {
-            return SocialDivFieldAnonymizer.this.visibleText(content);
-        }
-
-        String original() {
-            return openingTag + content + closingTag;
-        }
-
-        String withContent(String replacement) {
-            return openingTag + replacement + closingTag;
-        }
-    }
-
-    private interface ReplacementFactory {
-        String create(String original);
+    private enum FieldType {
+        TARGET,
+        ACCOUNT_IDENTIFIER,
+        EMAIL,
+        VANITY_NAME,
+        FIRST_NAME,
+        LAST_NAME,
+        FULL_NAME
     }
 }
