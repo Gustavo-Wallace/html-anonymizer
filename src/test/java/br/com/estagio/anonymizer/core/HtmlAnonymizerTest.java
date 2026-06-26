@@ -100,6 +100,28 @@ class HtmlAnonymizerTest {
         assertEquals("00000002", firstTicket(result));
     }
 
+    @Test
+    void shouldAnonymizeSocialDivFieldsPhonesAndTableFieldsTogether() {
+        HtmlAnonymizer anonymizer = new HtmlAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div>Target</div><div>0000000000</div>"
+                        + "<div>Email</div><div>conta.ficticia@example.com</div>"
+                        + "<tr><th>Description</th><td>Texto sensivel de exemplo<br /></td></tr>"
+                        + "<p>Telefone 550000000000</p>"
+        );
+
+        assertFalse(result.contains("<div>0000000000</div>"));
+        assertTrue(result.contains("<div>Target</div><div>0000000001</div>"));
+        assertFalse(result.contains("conta.ficticia@example.com"));
+        assertFalse(result.contains("Texto sensivel de exemplo"));
+        assertFalse(result.contains("550000000000"));
+        assertTrue(result.contains("<div>Target</div>"));
+        assertTrue(result.contains("<div>Email</div>"));
+        assertTrue(result.contains("<tr><th>Description</th><td>"));
+        assertTrue(result.matches("(?s).*<p>Telefone \\d{12}</p>.*"));
+    }
+
     private static String firstPhone(String value) {
         Matcher matcher = PLAIN_PHONE_PATTERN.matcher(value);
         assertTrue(matcher.find());
