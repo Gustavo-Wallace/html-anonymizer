@@ -5,6 +5,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.Test;
 
+import java.text.Normalizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -477,6 +478,111 @@ class SocialDivFieldAnonymizerTest {
     }
 
     @Test
+    void shouldAnonymizePortugueseEmailsDefinitionSubfield() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">"
+                        + "Emails Definição"
+                        + "<div class=\"m\"><div>E-mails: email.ficticio@example.com<div class=\"p\"></div></div></div>"
+                        + "</div>"
+        );
+        String replacement = valueAfterStructuredLabel(result, "Emails Definição");
+
+        assertTrue(replacement.matches("E-mails: user_[a-z0-9]+@example\\.com"));
+        assertFalse(result.contains("email.ficticio@example.com"));
+        assertTrue(result.contains("Emails Definição"));
+        assertTrue(result.contains("<div class=\"p\"></div>"));
+    }
+
+    @Test
+    void shouldAnonymizePortugueseRegisteredEmailAddresses() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Endereços de e-mail registrados</div>"
+                        + "<div class=\"m\"><div>usuario.ficticio@example.com (Verified)</div></div>"
+        );
+        String replacement = valueAfterStructuredLabel(result, "Endereços de e-mail registrados");
+
+        assertTrue(replacement.matches("user_[a-z0-9]+@example\\.com \\(Verified\\)"));
+        assertFalse(result.contains("usuario.ficticio@example.com"));
+        assertTrue(result.contains("Endereços de e-mail registrados"));
+    }
+
+    @Test
+    void shouldKeepPortugueseRegisteredEmailAddressesNoResponsiveRecord() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Endereços de e-mail registrados</div>"
+                        + "<div class=\"m\"><div>Nenhum registro responsivo localizado</div></div>"
+        );
+
+        assertEquals(
+                "Nenhum registro responsivo localizado",
+                valueAfterStructuredLabel(result, "Endereços de e-mail registrados")
+        );
+    }
+
+    @Test
+    void shouldAnonymizePortugueseSmallBusinessDefinitionSubfields() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">"
+                        + "Definição de Pequena Média Empresa"
+                        + "<div class=\"m\">"
+                        + "<div>Endereço: Rua Ficticia 123</div>"
+                        + "<div>Email: contato.empresa@example.com</div>"
+                        + "<div>Nome: Empresa Ficticia LTDA</div>"
+                        + "</div>"
+                        + "</div>"
+        );
+        String replacement = valueAfterStructuredLabel(result, "Definição de Pequena Média Empresa");
+
+        assertTrue(replacement.contains("Endereço: Endereco Ficticio "));
+        assertTrue(replacement.matches("(?s).*Email: user_[a-z0-9]+@example\\.com.*"));
+        assertTrue(replacement.contains("Nome: Empresa Ficticia "));
+        assertFalse(result.contains("Rua Ficticia 123"));
+        assertFalse(result.contains("contato.empresa@example.com"));
+        assertFalse(result.contains("Empresa Ficticia LTDA"));
+        assertTrue(result.contains("Definição de Pequena Média Empresa"));
+    }
+
+    @Test
+    void shouldKeepPortugueseSmallBusinessNoResponsiveRecord() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Pequenas Médias Empresas</div>"
+                        + "<div class=\"m\"><div>Nenhum registro responsivo localizado</div></div>"
+        );
+
+        assertEquals(
+                "Nenhum registro responsivo localizado",
+                valueAfterStructuredLabel(result, "Pequenas Médias Empresas")
+        );
+    }
+
+    @Test
+    void shouldRecognizePortugueseLabelsWithoutAccentsAndWithColon() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Emails Definicao:<div class=\"m\"><div>E-mail: outro.ficticio@example.com</div></div></div>"
+                        + "<div class=\"t i\">Pequenas Medias Empresas:<div class=\"m\"><div>Endereco: Rua Exemplo 456</div></div></div>"
+        );
+        String emailDefinition = valueAfterStructuredLabel(result, "Emails Definicao");
+        String smallBusiness = valueAfterStructuredLabel(result, "Pequenas Medias Empresas");
+
+        assertTrue(emailDefinition.matches("E-mail: user_[a-z0-9]+@example\\.com"));
+        assertTrue(smallBusiness.contains("Endereco: Endereco Ficticio "));
+        assertFalse(result.contains("outro.ficticio@example.com"));
+        assertFalse(result.contains("Rua Exemplo 456"));
+    }
+
+    @Test
     void shouldAnonymizeProfileUrlAndProfileValues() {
         SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
 
@@ -779,7 +885,9 @@ class SocialDivFieldAnonymizerTest {
     }
 
     private static String normalizedLabel(String label) {
-        return label.replaceAll("\\s*:+\\s*$", "").replaceAll("\\s+", " ").trim();
+        String withoutAccents = Normalizer.normalize(label, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        return withoutAccents.replaceAll("\\s*:+\\s*$", "").replaceAll("\\s+", " ").trim();
     }
 
     private static Element firstChildWithClass(Element element, String className) {

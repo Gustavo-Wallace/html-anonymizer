@@ -6,6 +6,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -18,6 +19,11 @@ import java.util.regex.Pattern;
 class SocialDivFieldAnonymizer {
     private static final Pattern INLINE_PROFILE_URL = Pattern.compile("(?i)(Profile\\s+URL\\s*:\\s*)(\\S+)");
     private static final Pattern EMAIL_WITH_SUFFIX = Pattern.compile("^([^\\s()]+@[^\\s()]+)(.*)$");
+    private static final Pattern SENSITIVE_SUBFIELD = Pattern.compile(
+            "(?iu)(\\b(?:Endere(?:ç|c)o|E-?mails?|Email|Nome)\\s*:\\s*)"
+                    + "(.*?)"
+                    + "(?=(?:\\s+\\b(?:Endere(?:ç|c)o|E-?mails?|Email|Nome)\\s*:)|$)"
+    );
     private static final Pattern HTML_DOCUMENT_PATTERN = Pattern.compile("(?is)<\\s*html\\b");
     private static final String[] SUPPORTED_LABELS = {
             "target",
@@ -37,7 +43,15 @@ class SocialDivFieldAnonymizer {
             "last name",
             "middle",
             "middle name",
-            "full name"
+            "full name",
+            "emails definição",
+            "emails definicao",
+            "endereços de e-mail registrados",
+            "enderecos de e-mail registrados",
+            "definição de pequena média empresa",
+            "definicao de pequena media empresa",
+            "pequenas médias empresas",
+            "pequenas medias empresas"
     };
     private static final String DESCRIPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     private static final String DESCRIPTION_DIGITS = "0123456789";
@@ -64,6 +78,8 @@ class SocialDivFieldAnonymizer {
     private final Map<String, String> lastNameReplacements = new HashMap<>();
     private final Map<String, String> middleNameReplacements = new HashMap<>();
     private final Map<String, String> fullNameReplacements = new HashMap<>();
+    private final Map<String, String> addressReplacements = new HashMap<>();
+    private final Map<String, String> companyNameReplacements = new HashMap<>();
 
     private final Set<String> usedTargets = new HashSet<>();
     private final Set<String> usedProfiles = new HashSet<>();
@@ -73,6 +89,8 @@ class SocialDivFieldAnonymizer {
     private final Set<String> usedLastNames = new HashSet<>();
     private final Set<String> usedMiddleNames = new HashSet<>();
     private final Set<String> usedFullNames = new HashSet<>();
+    private final Set<String> usedAddresses = new HashSet<>();
+    private final Set<String> usedCompanyNames = new HashSet<>();
 
     private long nextTarget = 1;
     private int nextToken = 1;
@@ -149,6 +167,15 @@ class SocialDivFieldAnonymizer {
             return;
         }
 
+        if (isNoResponsiveRecord(original) && fieldType.preservesNoResponsiveRecord()) {
+            return;
+        }
+
+        if (fieldType == FieldType.EMAIL_SUBFIELD_BLOCK || fieldType == FieldType.SMALL_BUSINESS_BLOCK) {
+            anonymizeSensitiveSubfields(valueElement);
+            return;
+        }
+
         String replacement = replacementFor(fieldType, original);
         replaceFirstTextNode(valueElement, replacement);
         if (fieldType == FieldType.PROFILE_IDENTIFIER && isLabel(normalizedLabel(label), "Profile URL")) {
@@ -204,8 +231,22 @@ class SocialDivFieldAnonymizer {
 
         if (isLabel(labelText, "Registered Email Addresses")
                 || isLabel(labelText, "Emails Definition")
+                || isLabel(labelText, "Endereços de e-mail registrados")
+                || isLabel(labelText, "Enderecos de e-mail registrados")
                 || isLabel(labelText, "Email")) {
             return FieldType.EMAIL;
+        }
+
+        if (isLabel(labelText, "Emails Definição")
+                || isLabel(labelText, "Emails Definicao")) {
+            return FieldType.EMAIL_SUBFIELD_BLOCK;
+        }
+
+        if (isLabel(labelText, "Definição de Pequena Média Empresa")
+                || isLabel(labelText, "Definicao de Pequena Media Empresa")
+                || isLabel(labelText, "Pequenas Médias Empresas")
+                || isLabel(labelText, "Pequenas Medias Empresas")) {
+            return FieldType.SMALL_BUSINESS_BLOCK;
         }
 
         if (isLabel(labelText, "First") || isLabel(labelText, "First Name")) {
@@ -407,6 +448,7 @@ class SocialDivFieldAnonymizer {
             case LAST_NAME -> lastNameReplacements.computeIfAbsent(original, this::createLastNameReplacement);
             case MIDDLE_NAME -> middleNameReplacements.computeIfAbsent(original, this::createMiddleNameReplacement);
             case FULL_NAME -> fullNameReplacements.computeIfAbsent(original, this::createFullNameReplacement);
+            case EMAIL_SUBFIELD_BLOCK, SMALL_BUSINESS_BLOCK -> original;
         };
     }
 
@@ -421,7 +463,17 @@ class SocialDivFieldAnonymizer {
     }
 
     private boolean isLabel(String value, String expected) {
-        return value.equalsIgnoreCase(expected.replaceAll("\\s*:+\\s*$", "").trim());
+        return normalizedKey(value).equals(normalizedKey(expected));
+    }
+
+    private String normalizedKey(String value) {
+        String withoutAccents = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        return withoutAccents
+                .replaceAll("\\s*:+\\s*$", "")
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(Locale.ROOT);
     }
 
     private String createTargetReplacement(String original) {
@@ -677,15 +729,99 @@ class SocialDivFieldAnonymizer {
     }
 
     private String createEmailReplacement(String original) {
+        if (isNoResponsiveRecord(original)) {
+            return original;
+        }
+
         String replacement;
         do {
             Matcher matcher = EMAIL_WITH_SUFFIX.matcher(original);
+            if (!matcher.matches()) {
+                return original;
+            }
+
             String suffix = matcher.matches() ? matcher.group(2) : "";
             replacement = "user_" + nextToken() + "@example.com" + suffix;
         } while (replacement.equals(original) || usedEmails.contains(replacement));
 
         usedEmails.add(replacement);
         return replacement;
+    }
+
+    private void anonymizeSensitiveSubfields(Element valueElement) {
+        for (TextNode textNode : valueElement.textNodes()) {
+            textNode.text(anonymizeSensitiveSubfields(textNode.text()));
+        }
+
+        for (Node child : valueElement.childNodes()) {
+            if (child instanceof Element childElement) {
+                anonymizeSensitiveSubfields(childElement);
+            }
+        }
+    }
+
+    private String anonymizeSensitiveSubfields(String text) {
+        Matcher matcher = SENSITIVE_SUBFIELD.matcher(text);
+        StringBuffer result = new StringBuffer();
+        while (matcher.find()) {
+            String subfield = matcher.group(1);
+            String value = matcher.group(2);
+            String replacement = replacementForSubfield(subfield, value);
+            matcher.appendReplacement(result, Matcher.quoteReplacement(subfield + replacement));
+        }
+
+        matcher.appendTail(result);
+        return result.toString();
+    }
+
+    private String replacementForSubfield(String subfield, String value) {
+        Matcher matcher = Pattern.compile("^(\\s*)(.*?)(\\s*)$").matcher(value);
+        if (!matcher.matches()) {
+            return value;
+        }
+
+        String coreValue = matcher.group(2);
+        if (coreValue.isBlank() || isNoResponsiveRecord(coreValue)) {
+            return value;
+        }
+
+        String normalizedSubfield = normalizedKey(subfield.replace(":", ""));
+        String replacement;
+        if (normalizedSubfield.contains("mail")) {
+            replacement = createEmailReplacement(coreValue);
+        } else if (normalizedSubfield.equals("endereco")) {
+            replacement = addressReplacements.computeIfAbsent(coreValue, this::createAddressReplacement);
+        } else if (normalizedSubfield.equals("nome")) {
+            replacement = companyNameReplacements.computeIfAbsent(coreValue, this::createCompanyNameReplacement);
+        } else {
+            replacement = coreValue;
+        }
+
+        return matcher.group(1) + replacement + matcher.group(3);
+    }
+
+    private String createAddressReplacement(String original) {
+        String replacement;
+        do {
+            replacement = "Endereco Ficticio " + nextToken();
+        } while (replacement.equals(original) || usedAddresses.contains(replacement));
+
+        usedAddresses.add(replacement);
+        return replacement;
+    }
+
+    private String createCompanyNameReplacement(String original) {
+        String replacement;
+        do {
+            replacement = "Empresa Ficticia " + nextToken();
+        } while (replacement.equals(original) || usedCompanyNames.contains(replacement));
+
+        usedCompanyNames.add(replacement);
+        return replacement;
+    }
+
+    private boolean isNoResponsiveRecord(String value) {
+        return normalizedKey(value).equals("nenhum registro responsivo localizado");
     }
 
     private String createVanityNameReplacement(String original) {
@@ -797,7 +933,15 @@ class SocialDivFieldAnonymizer {
         FIRST_NAME,
         LAST_NAME,
         MIDDLE_NAME,
-        FULL_NAME
+        FULL_NAME,
+        EMAIL_SUBFIELD_BLOCK,
+        SMALL_BUSINESS_BLOCK;
+
+        private boolean preservesNoResponsiveRecord() {
+            return this == EMAIL
+                    || this == EMAIL_SUBFIELD_BLOCK
+                    || this == SMALL_BUSINESS_BLOCK;
+        }
     }
 
     private record ProfileValueParts(String base, String identifier, String suffix) {
