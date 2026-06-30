@@ -2,6 +2,7 @@ package br.com.estagio.anonymizer.ui;
 
 import br.com.estagio.anonymizer.file.FolderProcessingResult;
 import br.com.estagio.anonymizer.file.InputProcessor;
+import br.com.estagio.anonymizer.file.ProcessingListener;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -238,7 +239,7 @@ public class MainWindow extends JFrame {
                 appendLog("Inicio do processamento: " + formatDateTime(startTime));
                 appendLog("Entrada: " + inputPath);
                 appendLog("Pasta de saida: " + outputFolder);
-                return inputProcessor.processInput(inputPath, outputFolder);
+                return inputProcessor.processInput(inputPath, outputFolder, processingListener());
             }
 
             @Override
@@ -250,6 +251,11 @@ public class MainWindow extends JFrame {
                     appendLog("Duracao aproximada: " + formatDuration(Duration.between(startTime, endTime)));
                     appendLog("Arquivos HTML encontrados: " + result.getHtmlFilesFound());
                     appendLog("Arquivos processados: " + result.getFilesProcessed());
+                    result.getLargestFile().ifPresent(largestFile -> appendLog(
+                            "Maior arquivo: " + displayName(largestFile)
+                                    + " (" + formatMegabytes(result.getLargestFileSizeBytes()) + ")"
+                                    + " em " + formatDuration(result.getLargestFileDuration())
+                    ));
                     if (result.getHtmlFilesFound() == 0) {
                         appendLog("Nenhum arquivo HTML foi encontrado.");
                     }
@@ -269,6 +275,20 @@ public class MainWindow extends JFrame {
         };
 
         worker.execute();
+    }
+
+    private ProcessingListener processingListener() {
+        return new ProcessingListener() {
+            @Override
+            public void fileStarted(Path inputFile, long sizeBytes) {
+                appendLog("Processando: " + displayName(inputFile) + " (" + formatMegabytes(sizeBytes) + ")");
+            }
+
+            @Override
+            public void fileFinished(Path inputFile, Path outputFile, long sizeBytes, Duration duration) {
+                appendLog("Concluido: " + displayName(inputFile) + " em " + formatDuration(duration));
+            }
+        };
     }
 
     private Path readPath(JTextField field, String emptyMessage) {
@@ -350,6 +370,15 @@ public class MainWindow extends JFrame {
         }
 
         return remainingSeconds + "s";
+    }
+
+    private String formatMegabytes(long sizeBytes) {
+        return String.format(Locale.ROOT, "%.1f MB", sizeBytes / 1024.0 / 1024.0);
+    }
+
+    private String displayName(Path path) {
+        Path fileName = path.getFileName();
+        return fileName == null ? path.toString() : fileName.toString();
     }
 
     private boolean hasHtmlExtension(Path file) {

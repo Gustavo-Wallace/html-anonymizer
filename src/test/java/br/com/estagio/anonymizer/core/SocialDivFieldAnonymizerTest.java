@@ -6,12 +6,14 @@ import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.Test;
 
 import java.text.Normalizer;
+import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SocialDivFieldAnonymizerTest {
@@ -461,6 +463,120 @@ class SocialDivFieldAnonymizerTest {
     }
 
     @Test
+    void shouldComposeFullNameFromAnonymizedFirstMiddleAndLastName() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">First Name<div class=\"m\"><div>Ana</div></div></div>"
+                        + "<div class=\"t i\">Middle Name<div class=\"m\"><div>Bruno</div></div></div>"
+                        + "<div class=\"t i\">Last Name<div class=\"m\"><div>Silva</div></div></div>"
+                        + "<div class=\"t i\">Full Name<div class=\"m\"><div>Ana Bruno Silva</div></div></div>"
+        );
+        String firstName = valueAfterStructuredLabel(result, "First Name");
+        String middleName = valueAfterStructuredLabel(result, "Middle Name");
+        String lastName = valueAfterStructuredLabel(result, "Last Name");
+        String fullName = valueAfterStructuredLabel(result, "Full Name");
+
+        assertEquals(firstName + " " + middleName + " " + lastName, fullName);
+        assertFalse(result.contains("Ana Bruno Silva"));
+    }
+
+    @Test
+    void shouldComposeFullNameFromAnonymizedFirstAndLastNameWhenMiddleNameIsMissing() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">First<div class=\"m\"><div>Ana</div></div></div>"
+                        + "<div class=\"t i\">Last<div class=\"m\"><div>Silva</div></div></div>"
+                        + "<div class=\"t i\">Full Name<div class=\"m\"><div>Ana Silva</div></div></div>"
+        );
+        String firstName = valueAfterStructuredLabel(result, "First");
+        String lastName = valueAfterStructuredLabel(result, "Last");
+        String fullName = valueAfterStructuredLabel(result, "Full Name");
+
+        assertEquals(firstName + " " + lastName, fullName);
+        assertFalse(result.contains("Ana Silva"));
+    }
+
+    @Test
+    void shouldComposeFullNameWithoutDoubleSpaceWhenMiddleNameIsEmpty() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">First Name<div class=\"m\"><div>Ana</div></div></div>"
+                        + "<div class=\"t i\">Middle Name<div class=\"m\"><div></div></div></div>"
+                        + "<div class=\"t i\">Last Name<div class=\"m\"><div>Silva</div></div></div>"
+                        + "<div class=\"t i\">Full Name<div class=\"m\"><div>Ana Silva</div></div></div>"
+        );
+        String firstName = valueAfterStructuredLabel(result, "First Name");
+        String lastName = valueAfterStructuredLabel(result, "Last Name");
+        String fullName = valueAfterStructuredLabel(result, "Full Name");
+
+        assertEquals(firstName + " " + lastName, fullName);
+        assertFalse(fullName.contains("  "));
+    }
+
+    @Test
+    void shouldKeepFallbackFullNameAnonymizationWhenNamePartsAreMissing() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Full Name<div class=\"m\"><div>Ana Silva</div></div></div>"
+        );
+        String fullName = valueAfterStructuredLabel(result, "Full Name");
+
+        assertNotEquals("Ana Silva", fullName);
+        assertTrue(fullName.matches("[A-Za-z]+ [A-Za-z]+"));
+    }
+
+    @Test
+    void shouldComposeFullNameUsingShortNameLabels() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">First<div class=\"m\"><div>Ana</div></div></div>"
+                        + "<div class=\"t i\">Middle<div class=\"m\"><div>Bruno</div></div></div>"
+                        + "<div class=\"t i\">Last<div class=\"m\"><div>Silva</div></div></div>"
+                        + "<div class=\"t i\">Full Name<div class=\"m\"><div>Ana Bruno Silva</div></div></div>"
+        );
+        String firstName = valueAfterStructuredLabel(result, "First");
+        String middleName = valueAfterStructuredLabel(result, "Middle");
+        String lastName = valueAfterStructuredLabel(result, "Last");
+        String fullName = valueAfterStructuredLabel(result, "Full Name");
+
+        assertEquals(firstName + " " + middleName + " " + lastName, fullName);
+        assertTrue(result.contains("First"));
+        assertTrue(result.contains("Middle"));
+        assertTrue(result.contains("Last"));
+        assertTrue(result.contains("Full Name"));
+    }
+
+    @Test
+    void shouldComposeFullNameInsideNestedNameBlock() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t o\"><div class=\"t i\">Name"
+                        + "<div class=\"m\"><div>"
+                        + "<div class=\"t i\">First Name<div class=\"m\"><div>Ana</div></div></div>"
+                        + "<div class=\"t i\">Middle Name<div class=\"m\"><div>Bruno</div></div></div>"
+                        + "<div class=\"t i\">Last Name<div class=\"m\"><div>Silva</div></div></div>"
+                        + "<div class=\"t i\">Full Name<div class=\"m\"><div>Ana Bruno Silva</div></div></div>"
+                        + "<div class=\"p\"></div>"
+                        + "</div></div>"
+                        + "</div></div>"
+        );
+        String firstName = valueAfterStructuredLabel(result, "First Name");
+        String middleName = valueAfterStructuredLabel(result, "Middle Name");
+        String lastName = valueAfterStructuredLabel(result, "Last Name");
+        String fullName = valueAfterStructuredLabel(result, "Full Name");
+
+        assertEquals(firstName + " " + middleName + " " + lastName, fullName);
+        assertTrue(result.contains("<div class=\"p\"></div>"));
+        assertTrue(result.contains("Full Name"));
+    }
+
+    @Test
     void shouldAnonymizeEmailsDefinition() {
         SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
 
@@ -591,12 +707,26 @@ class SocialDivFieldAnonymizerTest {
                         + "<div class=\"t i\">Profile<div class=\"m\"><div>perfil_ficticio</div></div></div>"
         );
         String profileUrl = valueAfterStructuredLabel(result, "Profile URL");
-        String profile = valueAfterStructuredLabel(result, "Profile");
 
         assertTrue(profileUrl.matches("https://www\\.instagram\\.com/profile_[a-z0-9]+"));
-        assertTrue(profile.matches("profile_[a-z0-9]+"));
         assertTrue(result.contains("Profile URL"));
         assertTrue(result.contains("Profile"));
+        assertTrue(result.contains("perfil_ficticio"));
+    }
+
+    @Test
+    void shouldAnonymizeProfileUri() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div class=\"t i\">Profile URI</div>"
+                        + "<div class=\"m\"><div>https://www.example.com/usuario.exemplo123</div></div>"
+        );
+        String profileUri = valueAfterStructuredLabel(result, "Profile URI");
+
+        assertTrue(profileUri.matches("https://www\\.example\\.com/profile_[a-z0-9]+"));
+        assertTrue(result.contains("Profile URI"));
+        assertFalse(result.contains("usuario.exemplo123"));
     }
 
     @Test
@@ -630,6 +760,40 @@ class SocialDivFieldAnonymizerTest {
         String looseUsername = directDivText(result, 0);
         String profileUrlText = Jsoup.parseBodyFragment(result).selectFirst("div.t.i").ownText();
         Matcher matcher = Pattern.compile("Profile URL: (instagram\\.com\\.br/\\S+)").matcher(profileUrlText);
+
+        assertTrue(matcher.find());
+        assertEquals(looseUsername, finalProfileIdentifier(matcher.group(1)));
+        assertFalse(result.contains("usuario.exemplo123"));
+    }
+
+    @Test
+    void shouldAnonymizeLooseUsernameBeforeProfileUri() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div>usuario.exemplo123</div>"
+                        + "<div class=\"t i\">Profile URI</div>"
+                        + "<div class=\"m\"><div>https://www.example.com/usuario.exemplo123</div></div>"
+        );
+        String looseUsername = directDivText(result, 0);
+        String profileUri = valueAfterStructuredLabel(result, "Profile URI");
+
+        assertEquals(looseUsername, finalProfileIdentifier(profileUri));
+        assertTrue(profileUri.matches("https://www\\.example\\.com/profile_[a-z0-9]+"));
+        assertFalse(result.contains("usuario.exemplo123"));
+    }
+
+    @Test
+    void shouldAnonymizeLooseUsernameBeforeInlineProfileUri() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div>usuario.exemplo123</div>"
+                        + "<div class=\"t i\">Profile URI: https://www.example.com/usuario.exemplo123</div>"
+        );
+        String looseUsername = directDivText(result, 0);
+        String profileUriText = Jsoup.parseBodyFragment(result).selectFirst("div.t.i").ownText();
+        Matcher matcher = Pattern.compile("Profile URI: (https://www\\.example\\.com/\\S+)").matcher(profileUriText);
 
         assertTrue(matcher.find());
         assertEquals(looseUsername, finalProfileIdentifier(matcher.group(1)));
@@ -702,6 +866,21 @@ class SocialDivFieldAnonymizerTest {
 
         assertEquals("texto sem relacao", directDivText(result, 0));
         assertTrue(profileUrl.matches("instagram\\.com\\.br/profile_[a-z0-9]+"));
+    }
+
+    @Test
+    void shouldNotAnonymizeDifferentLooseTextBeforeProfileUri() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+
+        String result = anonymizer.anonymize(
+                "<div>outro.usuario</div>"
+                        + "<div class=\"t i\">Profile URI</div>"
+                        + "<div class=\"m\"><div>https://www.example.com/usuario.exemplo123</div></div>"
+        );
+        String profileUri = valueAfterStructuredLabel(result, "Profile URI");
+
+        assertEquals("outro.usuario", directDivText(result, 0));
+        assertTrue(profileUri.matches("https://www\\.example\\.com/profile_[a-z0-9]+"));
     }
 
     @Test
@@ -810,6 +989,14 @@ class SocialDivFieldAnonymizerTest {
         );
 
         assertNotEquals("0000000000", valueAfterLabel(result, "Target"));
+    }
+
+    @Test
+    void shouldSkipDomParsingForLargeHtmlWithoutSupportedSocialLabels() {
+        SocialDivFieldAnonymizer anonymizer = new SocialDivFieldAnonymizer();
+        String html = "<div>Conteudo sem campos sensiveis</div>".repeat(20_000);
+
+        assertTimeout(Duration.ofSeconds(2), () -> assertEquals(html, anonymizer.anonymize(html)));
     }
 
     private static String valueAfterLabel(String html, String label) {

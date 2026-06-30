@@ -5,6 +5,8 @@ import br.com.estagio.anonymizer.core.HtmlAnonymizer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -23,8 +25,17 @@ public class InputProcessor {
     }
 
     public FolderProcessingResult processInput(Path inputPath, Path outputFolder) throws IOException {
+        return processInput(inputPath, outputFolder, ProcessingListener.NONE);
+    }
+
+    public FolderProcessingResult processInput(
+            Path inputPath,
+            Path outputFolder,
+            ProcessingListener listener
+    ) throws IOException {
         Objects.requireNonNull(inputPath, "inputPath must not be null");
         Objects.requireNonNull(outputFolder, "outputFolder must not be null");
+        Objects.requireNonNull(listener, "listener must not be null");
 
         if (!Files.exists(inputPath)) {
             throw new IllegalArgumentException("Input path does not exist: " + inputPath);
@@ -35,17 +46,21 @@ public class InputProcessor {
         }
 
         if (Files.isRegularFile(inputPath)) {
-            return processFile(inputPath, outputFolder);
+            return processFile(inputPath, outputFolder, listener);
         }
 
         if (Files.isDirectory(inputPath)) {
-            return processFolder(inputPath, outputFolder);
+            return processFolder(inputPath, outputFolder, listener);
         }
 
         throw new IllegalArgumentException("Input path must be an HTML file or a directory: " + inputPath);
     }
 
-    private FolderProcessingResult processFile(Path inputFile, Path outputFolder) throws IOException {
+    private FolderProcessingResult processFile(
+            Path inputFile,
+            Path outputFolder,
+            ProcessingListener listener
+    ) throws IOException {
         if (!hasHtmlExtension(inputFile)) {
             throw new IllegalArgumentException("Input file must have .html or .htm extension: " + inputFile);
         }
@@ -60,12 +75,30 @@ public class InputProcessor {
             throw new IllegalArgumentException("Output file cannot be the same as input file: " + outputFile);
         }
 
+        Instant totalStart = Instant.now();
+        long sizeBytes = Files.size(inputFile);
+        Instant fileStart = Instant.now();
+        listener.fileStarted(inputFile, sizeBytes);
         htmlFileProcessor.processFile(inputFile, outputFile, new HtmlAnonymizer());
-        return new FolderProcessingResult(1, 1, List.of(OutputFileName.anonymized(fileName)));
+        Duration fileDuration = Duration.between(fileStart, Instant.now());
+        listener.fileFinished(inputFile, outputFile, sizeBytes, fileDuration);
+        return new FolderProcessingResult(
+                1,
+                1,
+                List.of(OutputFileName.anonymized(fileName)),
+                Duration.between(totalStart, Instant.now()),
+                inputFile,
+                sizeBytes,
+                fileDuration
+        );
     }
 
-    private FolderProcessingResult processFolder(Path inputFolder, Path outputFolder) throws IOException {
-        return folderProcessor.processFolder(inputFolder, outputFolder);
+    private FolderProcessingResult processFolder(
+            Path inputFolder,
+            Path outputFolder,
+            ProcessingListener listener
+    ) throws IOException {
+        return folderProcessor.processFolder(inputFolder, outputFolder, listener);
     }
 
     private boolean hasHtmlExtension(Path file) {

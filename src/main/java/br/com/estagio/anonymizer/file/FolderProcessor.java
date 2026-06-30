@@ -5,6 +5,8 @@ import br.com.estagio.anonymizer.core.HtmlAnonymizer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -24,10 +26,20 @@ public class FolderProcessor {
     }
 
     public FolderProcessingResult processFolder(Path inputFolder, Path outputFolder) throws IOException {
+        return processFolder(inputFolder, outputFolder, ProcessingListener.NONE);
+    }
+
+    public FolderProcessingResult processFolder(
+            Path inputFolder,
+            Path outputFolder,
+            ProcessingListener listener
+    ) throws IOException {
         Objects.requireNonNull(inputFolder, "inputFolder must not be null");
         Objects.requireNonNull(outputFolder, "outputFolder must not be null");
+        Objects.requireNonNull(listener, "listener must not be null");
 
         validateFolders(inputFolder, outputFolder);
+        Instant totalStart = Instant.now();
 
         List<Path> htmlFiles;
         try (Stream<Path> paths = Files.walk(inputFolder)) {
@@ -40,10 +52,23 @@ public class FolderProcessor {
 
         Path outputRootFolder = resolveOutputRootFolder(inputFolder, outputFolder);
         HtmlAnonymizer anonymizer = new HtmlAnonymizer();
+        Path largestFile = null;
+        long largestFileSize = 0;
+        Duration largestFileDuration = Duration.ZERO;
         for (Path htmlFile : htmlFiles) {
             Path relativePath = inputFolder.relativize(htmlFile);
             Path outputFile = outputRootFolder.resolve(anonymizedRelativePath(relativePath));
+            long sizeBytes = Files.size(htmlFile);
+            Instant fileStart = Instant.now();
+            listener.fileStarted(htmlFile, sizeBytes);
             htmlFileProcessor.processFile(htmlFile, outputFile, anonymizer);
+            Duration fileDuration = Duration.between(fileStart, Instant.now());
+            listener.fileFinished(htmlFile, outputFile, sizeBytes, fileDuration);
+            if (sizeBytes > largestFileSize) {
+                largestFile = htmlFile;
+                largestFileSize = sizeBytes;
+                largestFileDuration = fileDuration;
+            }
         }
 
         List<Path> processedFiles = htmlFiles.stream()
@@ -51,7 +76,15 @@ public class FolderProcessor {
                 .map(this::anonymizedRelativePath)
                 .toList();
 
-        return new FolderProcessingResult(htmlFiles.size(), htmlFiles.size(), processedFiles);
+        return new FolderProcessingResult(
+                htmlFiles.size(),
+                htmlFiles.size(),
+                processedFiles,
+                Duration.between(totalStart, Instant.now()),
+                largestFile,
+                largestFileSize,
+                largestFileDuration
+        );
     }
 
     private Path resolveOutputRootFolder(Path inputFolder, Path outputFolder) {
