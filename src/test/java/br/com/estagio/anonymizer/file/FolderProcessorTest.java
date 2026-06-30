@@ -35,13 +35,13 @@ class FolderProcessorTest {
 
         assertEquals(2, result.getHtmlFilesFound());
         assertEquals(2, result.getFilesProcessed());
-        assertTrue(result.getProcessedFiles().contains(Path.of("first.html")));
-        assertTrue(result.getProcessedFiles().contains(Path.of("second.htm")));
-        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("first.html")));
-        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("second.htm")));
+        assertTrue(result.getProcessedFiles().contains(Path.of("first_anonimizado.html")));
+        assertTrue(result.getProcessedFiles().contains(Path.of("second_anonimizado.htm")));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("first_anonimizado.html")));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("second_anonimizado.htm")));
         assertFalse(Files.exists(output.resolve("first.html")));
-        assertFalse(readFile(output.resolve("input_anonimizado").resolve("first.html")).contains("550000000000"));
-        assertFalse(readFile(output.resolve("input_anonimizado").resolve("second.htm")).contains("551111111111"));
+        assertFalse(readFile(output.resolve("input_anonimizado").resolve("first_anonimizado.html")).contains("550000000000"));
+        assertFalse(readFile(output.resolve("input_anonimizado").resolve("second_anonimizado.htm")).contains("551111111111"));
     }
 
     @Test
@@ -53,7 +53,7 @@ class FolderProcessorTest {
         FolderProcessingResult result = new FolderProcessor().processFolder(input, output);
 
         assertEquals(1, result.getHtmlFilesFound());
-        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("sub").resolve("deep").resolve("page.HTML")));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("sub").resolve("deep").resolve("page_anonimizado.HTML")));
     }
 
     @Test
@@ -65,8 +65,8 @@ class FolderProcessorTest {
 
         FolderProcessingResult result = new FolderProcessor().processFolder(input, output);
 
-        assertEquals(List.of(relativePath), result.getProcessedFiles());
-        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve(relativePath)));
+        assertEquals(List.of(Path.of("one", "two", "page_anonimizado.htm")), result.getProcessedFiles());
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("one").resolve("two").resolve("page_anonimizado.htm")));
         assertFalse(Files.exists(output.resolve("input_anonimizado").resolve("one_anonimizado")));
     }
 
@@ -80,8 +80,21 @@ class FolderProcessorTest {
         FolderProcessingResult result = new FolderProcessor().processFolder(input, output);
 
         assertEquals(1, result.getHtmlFilesFound());
-        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("page.html")));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("page_anonimizado.html")));
         assertFalse(Files.exists(output.resolve("input_anonimizado").resolve("notes.txt")));
+    }
+
+    @Test
+    void shouldNotDuplicateAnonymizedSuffixWhenProcessingFolder() throws IOException {
+        Path input = createDirectory("input");
+        Path output = tempDir.resolve("output");
+        writeFile(input.resolve("page_anonimizado.html"), "<td>550000000000</td>");
+
+        FolderProcessingResult result = new FolderProcessor().processFolder(input, output);
+
+        assertEquals(List.of(Path.of("page_anonimizado.html")), result.getProcessedFiles());
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("page_anonimizado.html")));
+        assertFalse(Files.exists(output.resolve("input_anonimizado").resolve("page_anonimizado_anonimizado.html")));
     }
 
     @Test
@@ -106,8 +119,8 @@ class FolderProcessorTest {
 
         new FolderProcessor().processFolder(input, output);
 
-        String firstReplacement = firstPhone(readFile(output.resolve("input_anonimizado").resolve("first.html")));
-        String secondReplacement = firstPhone(readFile(output.resolve("input_anonimizado").resolve("second.html")));
+        String firstReplacement = firstPhone(readFile(output.resolve("input_anonimizado").resolve("first_anonimizado.html")));
+        String secondReplacement = firstPhone(readFile(output.resolve("input_anonimizado").resolve("second_anonimizado.html")));
         assertEquals(firstReplacement, secondReplacement);
         assertNotEquals("550000000000", firstReplacement);
     }
@@ -121,8 +134,8 @@ class FolderProcessorTest {
 
         new FolderProcessor().processFolder(input, output);
 
-        String firstReplacement = firstTicket(readFile(output.resolve("input_anonimizado").resolve("first.html")));
-        String secondReplacement = firstTicket(readFile(output.resolve("input_anonimizado").resolve("second.html")));
+        String firstReplacement = firstTicket(readFile(output.resolve("input_anonimizado").resolve("first_anonimizado.html")));
+        String secondReplacement = firstTicket(readFile(output.resolve("input_anonimizado").resolve("second_anonimizado.html")));
         assertEquals(firstReplacement, secondReplacement);
         assertNotEquals("0000001", firstReplacement);
     }
@@ -162,7 +175,7 @@ class FolderProcessorTest {
 
         new FolderProcessor().processFolder(input, output);
 
-        assertTrue(Files.exists(tempDir.resolve("clientes_anonimizado").resolve("a.html")));
+        assertTrue(Files.exists(tempDir.resolve("clientes_anonimizado").resolve("a_anonimizado.html")));
         assertFalse(Files.exists(tempDir.resolve("a.html")));
         assertEquals("<td>550000000000</td>", readFile(input.resolve("a.html")));
     }

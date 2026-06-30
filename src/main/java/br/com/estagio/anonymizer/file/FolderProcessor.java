@@ -42,12 +42,13 @@ public class FolderProcessor {
         HtmlAnonymizer anonymizer = new HtmlAnonymizer();
         for (Path htmlFile : htmlFiles) {
             Path relativePath = inputFolder.relativize(htmlFile);
-            Path outputFile = outputRootFolder.resolve(relativePath);
+            Path outputFile = outputRootFolder.resolve(anonymizedRelativePath(relativePath));
             htmlFileProcessor.processFile(htmlFile, outputFile, anonymizer);
         }
 
         List<Path> processedFiles = htmlFiles.stream()
                 .map(inputFolder::relativize)
+                .map(this::anonymizedRelativePath)
                 .toList();
 
         return new FolderProcessingResult(htmlFiles.size(), htmlFiles.size(), processedFiles);
@@ -60,6 +61,13 @@ public class FolderProcessor {
         }
 
         return outputFolder.resolve(inputFolderName + OUTPUT_FOLDER_SUFFIX);
+    }
+
+    private Path anonymizedRelativePath(Path relativePath) {
+        Path fileName = relativePath.getFileName();
+        Path anonymizedFileName = OutputFileName.anonymized(fileName);
+        Path parent = relativePath.getParent();
+        return parent == null ? anonymizedFileName : parent.resolve(anonymizedFileName);
     }
 
     private void validateFolders(Path inputFolder, Path outputFolder) throws IOException {

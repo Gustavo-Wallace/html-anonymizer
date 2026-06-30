@@ -13,7 +13,7 @@ O programa processa um arquivo HTML individual ou uma pasta inteira com arquivos
 - Valores de `Internal Ticket Number` sao anonimizados apenas no numero apos esse texto.
 - O mesmo ticket recebe sempre o mesmo valor anonimizado durante uma execucao.
 - Em HTMLs com campos em tabela, os campos `Internal Ticket Number`, `Description` e `Subject` tambem sao anonimizados quando aparecem em linhas `<tr>` com o nome do campo em `<th>` e o valor em `<td>`.
-- Em HTMLs de Instagram/Facebook com campos em `<div>`, inclusive estruturas aninhadas com labels e valores separados, valores como `Target`, `Account Identifier`, e-mails, nomes e `Vanity Name` tambem sao anonimizados.
+- Em HTMLs com campos em `<div>`, inclusive estruturas aninhadas com labels e valores separados, valores como `Internal Ticket Number`, `Description`, `Subject`, `Target`, `Account Identifier`, e-mails, nomes, `Profile URL`, `Profile` e `Vanity Name` tambem sao anonimizados.
 - Arquivos originais nunca sao modificados.
 - Arquivos que nao sejam `.html` ou `.htm` nao sao copiados.
 - O programa nao gera CSV.
@@ -32,7 +32,7 @@ Nesses casos, apenas o conteudo do `<td>` correspondente e anonimizado. A estrut
 
 ## Campos em div
 
-O programa tambem suporta HTMLs de Instagram/Facebook em que o nome do campo aparece em um `<div>` e o valor no `<div>` seguinte, inclusive quando o valor esta aninhado em estruturas como `div class="m"`:
+O programa tambem suporta HTMLs de WhatsApp/Instagram/Facebook em que o nome do campo aparece em um `<div>` e o valor no `<div>` seguinte, inclusive quando o valor esta aninhado em estruturas como `div class="m"`:
 
 ```html
 <div>Target</div>
@@ -50,9 +50,12 @@ O programa tambem suporta HTMLs de Instagram/Facebook em que o nome do campo apa
 
 <div class="t i">Vanity Name</div>
 <div class="m"><div>usuario_ficticio<div class="p"></div></div></div>
+
+<div class="t i">Internal Ticket Number</div>
+<div class="m"><div>0000001<div class="p"></div></div></div>
 ```
 
-Tambem sao tratados campos como `Email`, `Vanity Name`, `Last` e a sequencia `Middle Name` / `Full Name`. Os labels sao preservados e apenas os valores correspondentes sao substituidos por dados ficticios.
+Tambem sao tratados campos como `Email`, `Emails Definition`, `Registered Email Addresses`, `Vanity Name`, `Profile URL`, `Profile`, `Last` e a sequencia `Middle Name` / `Full Name`. Os labels sao preservados e apenas os valores correspondentes sao substituidos por dados ficticios.
 
 ## Uso pela interface grafica
 
@@ -87,7 +90,7 @@ java -jar target/html-anonymizer-1.0.0.jar "C:/entrada/teste.html" "C:/saida"
 Resultado:
 
 ```text
-C:/saida/teste.html
+C:/saida/teste_anonimizado.html
 ```
 
 Exemplo com pasta:
@@ -99,12 +102,12 @@ java -jar target/html-anonymizer-1.0.0.jar "C:/dados/clientes" "C:/dados"
 Resultado:
 
 ```text
-C:/dados/clientes_anonimizado/a.html
-C:/dados/clientes_anonimizado/empresa1/b.html
-C:/dados/clientes_anonimizado/empresa2/subpasta/c.html
+C:/dados/clientes_anonimizado/a_anonimizado.html
+C:/dados/clientes_anonimizado/empresa1/b_anonimizado.html
+C:/dados/clientes_anonimizado/empresa2/subpasta/c_anonimizado.html
 ```
 
-Quando a entrada for uma pasta, apenas a pasta raiz gerada recebe o sufixo `_anonimizado`. As subpastas internas mantem os nomes originais.
+Quando a entrada for uma pasta, a pasta raiz gerada recebe o sufixo `_anonimizado`. As subpastas internas mantem os nomes originais, e cada arquivo HTML gerado tambem recebe `_anonimizado` antes da extensao. Se o arquivo ja terminar com `_anonimizado`, o sufixo nao e duplicado.
 
 ## Build do JAR
 

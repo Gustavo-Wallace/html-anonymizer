@@ -45,8 +45,8 @@ class MainTest {
 
         assertEquals(0, exitCode);
         assertTrue(out.toString(StandardCharsets.UTF_8).contains("Arquivos processados: 1"));
-        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("page.html")));
-        assertFalse(Files.readString(output.resolve("input_anonimizado").resolve("page.html"), StandardCharsets.UTF_8).contains("550000000000"));
+        assertTrue(Files.exists(output.resolve("input_anonimizado").resolve("page_anonimizado.html")));
+        assertFalse(Files.readString(output.resolve("input_anonimizado").resolve("page_anonimizado.html"), StandardCharsets.UTF_8).contains("550000000000"));
         assertEquals("", err.toString(StandardCharsets.UTF_8));
     }
 
@@ -65,8 +65,8 @@ class MainTest {
 
         assertEquals(0, exitCode);
         assertTrue(out.toString(StandardCharsets.UTF_8).contains("Arquivos processados: 1"));
-        assertTrue(Files.exists(output.resolve("page.html")));
-        assertFalse(Files.readString(output.resolve("page.html"), StandardCharsets.UTF_8).contains("550000000000"));
+        assertTrue(Files.exists(output.resolve("page_anonimizado.html")));
+        assertFalse(Files.readString(output.resolve("page_anonimizado.html"), StandardCharsets.UTF_8).contains("550000000000"));
     }
 
     @Test

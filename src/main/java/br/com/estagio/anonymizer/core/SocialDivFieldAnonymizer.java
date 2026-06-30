@@ -10,26 +10,37 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 class SocialDivFieldAnonymizer {
-    private static final Pattern INSTAGRAM_OR_FACEBOOK_URL = Pattern.compile(
-            "(?i)^(https?://(?:www\\.)?(?:instagram|facebook)\\.com/)([^/?#]+)(.*)$"
-    );
+    private static final Pattern INLINE_PROFILE_URL = Pattern.compile("(?i)(Profile\\s+URL\\s*:\\s*)(\\S+)");
     private static final Pattern EMAIL_WITH_SUFFIX = Pattern.compile("^([^\\s()]+@[^\\s()]+)(.*)$");
     private static final Pattern HTML_DOCUMENT_PATTERN = Pattern.compile("(?is)<\\s*html\\b");
     private static final String[] SUPPORTED_LABELS = {
             "target",
+            "internal ticket number",
+            "description",
+            "subject",
             "account identifier",
             "registered email addresses",
+            "emails definition",
             "email",
             "vanity name",
+            "profile url",
+            "profile",
             "first",
+            "first name",
             "last",
+            "last name",
+            "middle",
+            "middle name",
             "full name"
     };
+    private static final String DESCRIPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    private static final String DESCRIPTION_DIGITS = "0123456789";
 
     private static final String[] FIRST_NAMES = {
             "Ana", "Bruno", "Carla", "Diego", "Maria", "Pedro", "Laura", "Rafael", "Julia", "Lucas"
@@ -37,27 +48,46 @@ class SocialDivFieldAnonymizer {
     private static final String[] LAST_NAMES = {
             "Silva", "Santos", "Oliveira", "Costa", "Souza", "Lima", "Pereira", "Almeida", "Rocha", "Mendes"
     };
+    private static final String[] FOOTBALL_TEAMS = {
+            "Flamengo", "Palmeiras", "Corinthians", "Sao Paulo", "Santos", "Vasco", "Gremio",
+            "Internacional", "Real Madrid", "Barcelona", "Manchester United", "Liverpool",
+            "Chelsea", "Arsenal", "Bayern Munich", "Juventus", "Benfica", "Porto"
+    };
 
+    private final TicketAnonymizer ticketAnonymizer;
     private final Map<String, String> targetReplacements = new HashMap<>();
-    private final Map<String, String> accountIdentifierReplacements = new HashMap<>();
+    private final Map<String, String> profileReplacements = new HashMap<>();
     private final Map<String, String> emailReplacements = new HashMap<>();
-    private final Map<String, String> vanityNameReplacements = new HashMap<>();
+    private final Map<String, String> descriptionReplacements = new HashMap<>();
+    private final Map<String, String> subjectReplacements = new HashMap<>();
     private final Map<String, String> firstNameReplacements = new HashMap<>();
     private final Map<String, String> lastNameReplacements = new HashMap<>();
+    private final Map<String, String> middleNameReplacements = new HashMap<>();
     private final Map<String, String> fullNameReplacements = new HashMap<>();
 
     private final Set<String> usedTargets = new HashSet<>();
-    private final Set<String> usedAccountIdentifiers = new HashSet<>();
+    private final Set<String> usedProfiles = new HashSet<>();
     private final Set<String> usedEmails = new HashSet<>();
-    private final Set<String> usedVanityNames = new HashSet<>();
+    private final Set<String> usedDescriptions = new HashSet<>();
     private final Set<String> usedFirstNames = new HashSet<>();
     private final Set<String> usedLastNames = new HashSet<>();
+    private final Set<String> usedMiddleNames = new HashSet<>();
     private final Set<String> usedFullNames = new HashSet<>();
 
     private long nextTarget = 1;
     private int nextToken = 1;
     private int nextFirstName;
     private int nextLastName;
+    private int nextMiddleName;
+    private int nextTeam;
+
+    SocialDivFieldAnonymizer() {
+        this(new TicketAnonymizer());
+    }
+
+    SocialDivFieldAnonymizer(TicketAnonymizer ticketAnonymizer) {
+        this.ticketAnonymizer = Objects.requireNonNull(ticketAnonymizer);
+    }
 
     String anonymize(String input) {
         if (input == null) {
@@ -95,6 +125,10 @@ class SocialDivFieldAnonymizer {
     }
 
     private void anonymizeLabel(Element label) {
+        if (anonymizeInlineProfileUrl(label)) {
+            return;
+        }
+
         FieldType fieldType = fieldTypeFor(label);
         if (fieldType == null) {
             return;
@@ -110,35 +144,80 @@ class SocialDivFieldAnonymizer {
             return;
         }
 
+        if (fieldType == FieldType.MIDDLE_NAME
+                && (fieldTypeFor(valueElement) != null || containsPotentialFieldLabel(valueElement))) {
+            return;
+        }
+
         String replacement = replacementFor(fieldType, original);
         replaceFirstTextNode(valueElement, replacement);
+        if (fieldType == FieldType.PROFILE_IDENTIFIER && isLabel(normalizedLabel(label), "Profile URL")) {
+            anonymizePreviousLooseProfileText(label, original, replacement);
+        }
+    }
+
+    private boolean anonymizeInlineProfileUrl(Element label) {
+        for (TextNode textNode : label.textNodes()) {
+            Matcher matcher = INLINE_PROFILE_URL.matcher(textNode.text());
+            if (!matcher.find()) {
+                continue;
+            }
+
+            String original = matcher.group(2);
+            String replacement = createProfileReplacement(original);
+            String updated = textNode.text().substring(0, matcher.start(2))
+                    + replacement
+                    + textNode.text().substring(matcher.end(2));
+            textNode.text(updated);
+            anonymizePreviousLooseProfileText(label, original, replacement);
+            return true;
+        }
+
+        return false;
     }
 
     private FieldType fieldTypeFor(Element label) {
-        String labelText = normalizedText(label);
+        String labelText = normalizedLabel(label);
 
         if (isLabel(labelText, "Target")) {
             return FieldType.TARGET;
         }
 
-        if (isLabel(labelText, "Account Identifier")) {
-            return FieldType.ACCOUNT_IDENTIFIER;
+        if (isLabel(labelText, "Internal Ticket Number")) {
+            return FieldType.INTERNAL_TICKET_NUMBER;
         }
 
-        if (isLabel(labelText, "Registered Email Addresses") || isLabel(labelText, "Email")) {
+        if (isLabel(labelText, "Description")) {
+            return FieldType.DESCRIPTION;
+        }
+
+        if (isLabel(labelText, "Subject")) {
+            return FieldType.SUBJECT;
+        }
+
+        if (isLabel(labelText, "Account Identifier")
+                || isLabel(labelText, "Vanity Name")
+                || isLabel(labelText, "Profile URL")
+                || isLabel(labelText, "Profile")) {
+            return FieldType.PROFILE_IDENTIFIER;
+        }
+
+        if (isLabel(labelText, "Registered Email Addresses")
+                || isLabel(labelText, "Emails Definition")
+                || isLabel(labelText, "Email")) {
             return FieldType.EMAIL;
         }
 
-        if (isLabel(labelText, "Vanity Name")) {
-            return FieldType.VANITY_NAME;
-        }
-
-        if (isLabel(labelText, "First")) {
+        if (isLabel(labelText, "First") || isLabel(labelText, "First Name")) {
             return FieldType.FIRST_NAME;
         }
 
-        if (isLabel(labelText, "Last")) {
+        if (isLabel(labelText, "Last") || isLabel(labelText, "Last Name")) {
             return FieldType.LAST_NAME;
+        }
+
+        if (isLabel(labelText, "Middle") || isLabel(labelText, "Middle Name")) {
+            return FieldType.MIDDLE_NAME;
         }
 
         if (isLabel(labelText, "Full Name")) {
@@ -177,6 +256,11 @@ class SocialDivFieldAnonymizer {
             return siblingValue;
         }
 
+        Element siblingContainingValue = firstNextElementSiblingContainingClass(label, "m");
+        if (siblingContainingValue != null) {
+            return siblingContainingValue;
+        }
+
         Element parent = label.parent();
         if (parent == null) {
             return null;
@@ -197,6 +281,24 @@ class SocialDivFieldAnonymizer {
             if (afterLabel && child.hasClass("m")) {
                 return child;
             }
+        }
+
+        return null;
+    }
+
+    private Element firstNextElementSiblingContainingClass(Element element, String className) {
+        Element sibling = element.nextElementSibling();
+        while (sibling != null) {
+            if (isPotentialFieldLabel(sibling)) {
+                return null;
+            }
+
+            Element descendant = sibling.selectFirst("div." + className);
+            if (descendant != null) {
+                return descendant;
+            }
+
+            sibling = sibling.nextElementSibling();
         }
 
         return null;
@@ -265,6 +367,16 @@ class SocialDivFieldAnonymizer {
         return element.hasClass("t") && element.hasClass("i") && fieldTypeFor(element) != null;
     }
 
+    private boolean containsPotentialFieldLabel(Element element) {
+        for (Element child : element.select("div")) {
+            if (child != element && isPotentialFieldLabel(child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private boolean replaceFirstTextNode(Element valueElement, String replacement) {
         for (TextNode textNode : valueElement.textNodes()) {
             if (!textNode.text().trim().isEmpty()) {
@@ -286,29 +398,30 @@ class SocialDivFieldAnonymizer {
     private String replacementFor(FieldType fieldType, String original) {
         return switch (fieldType) {
             case TARGET -> targetReplacements.computeIfAbsent(original, this::createTargetReplacement);
-            case ACCOUNT_IDENTIFIER -> accountIdentifierReplacements.computeIfAbsent(
-                    original,
-                    this::createAccountIdentifierReplacement
-            );
+            case INTERNAL_TICKET_NUMBER -> createTicketReplacement(original);
+            case DESCRIPTION -> descriptionReplacements.computeIfAbsent(original, this::createDescriptionReplacement);
+            case SUBJECT -> subjectReplacements.computeIfAbsent(original, ignored -> nextFootballTeam());
+            case PROFILE_IDENTIFIER -> createProfileReplacement(original);
             case EMAIL -> emailReplacements.computeIfAbsent(original, this::createEmailReplacement);
-            case VANITY_NAME -> vanityNameReplacements.computeIfAbsent(original, this::createVanityNameReplacement);
             case FIRST_NAME -> firstNameReplacements.computeIfAbsent(original, this::createFirstNameReplacement);
             case LAST_NAME -> lastNameReplacements.computeIfAbsent(original, this::createLastNameReplacement);
+            case MIDDLE_NAME -> middleNameReplacements.computeIfAbsent(original, this::createMiddleNameReplacement);
             case FULL_NAME -> fullNameReplacements.computeIfAbsent(original, this::createFullNameReplacement);
         };
     }
 
-    private String normalizedText(Element element) {
+    private String normalizedLabel(Element element) {
         String ownText = element.ownText().replaceAll("\\s+", " ").trim();
-        if (!ownText.isEmpty() || !element.hasClass("t") || !element.hasClass("i")) {
-            return ownText;
+        String text = ownText;
+        if (text.isEmpty() && element.hasClass("t") && element.hasClass("i")) {
+            text = element.text().replaceAll("\\s+", " ").trim();
         }
 
-        return element.text().replaceAll("\\s+", " ").trim();
+        return text.replaceAll("\\s*:+\\s*$", "").replaceAll("\\s+", " ").trim();
     }
 
     private boolean isLabel(String value, String expected) {
-        return value.equalsIgnoreCase(expected);
+        return value.equalsIgnoreCase(expected.replaceAll("\\s*:+\\s*$", "").trim());
     }
 
     private String createTargetReplacement(String original) {
@@ -326,16 +439,241 @@ class SocialDivFieldAnonymizer {
         return replacement;
     }
 
-    private String createAccountIdentifierReplacement(String original) {
+    private String createTicketReplacement(String original) {
+        Matcher matcher = Pattern.compile("\\d+").matcher(original);
+        if (!matcher.find()) {
+            return original;
+        }
+
+        String ticket = matcher.group();
+        String replacement = ticketAnonymizer.anonymizeTicketValue(ticket);
+        return original.substring(0, matcher.start()) + replacement + original.substring(matcher.end());
+    }
+
+    private String createProfileReplacement(String original) {
+        ProfileValueParts parts = profileValueParts(original);
+        String token = profileReplacements.computeIfAbsent(parts.identifier(), this::createProfileToken);
+        return parts.base() + token + parts.suffix();
+    }
+
+    private String createProfileToken(String original) {
         String replacement;
         do {
-            Matcher matcher = INSTAGRAM_OR_FACEBOOK_URL.matcher(original);
-            String token = nextProfileToken();
-            replacement = matcher.matches() ? matcher.group(1) + token + matcher.group(3) : token;
-        } while (replacement.equals(original) || usedAccountIdentifiers.contains(replacement));
+            replacement = nextProfileToken();
+        } while (replacement.equals(original) || usedProfiles.contains(replacement));
 
-        usedAccountIdentifiers.add(replacement);
+        usedProfiles.add(replacement);
         return replacement;
+    }
+
+    private ProfileValueParts profileValueParts(String original) {
+        String value = original.trim();
+        ProfileValueParts pathParts = profilePathValueParts(value);
+        ProfileValueParts queryParts = profileQueryValueParts(value);
+        if (pathParts != null && !isGenericProfilePathSegment(pathParts.identifier())) {
+            return pathParts;
+        }
+
+        if (queryParts != null) {
+            return queryParts;
+        }
+
+        if (pathParts != null) {
+            return pathParts;
+        }
+
+        return new ProfileValueParts("", original, "");
+    }
+
+    private ProfileValueParts profilePathValueParts(String value) {
+        int pathEnd = firstNonNegative(value.indexOf('?'), value.indexOf('#'), value.length());
+        int firstPathSlash = firstPathSlash(value, pathEnd);
+        if (firstPathSlash < 0) {
+            return null;
+        }
+
+        int candidateEnd = pathEnd;
+        while (candidateEnd > firstPathSlash && value.charAt(candidateEnd - 1) == '/') {
+            candidateEnd--;
+        }
+
+        int candidateStart = value.lastIndexOf('/', candidateEnd - 1) + 1;
+        if (candidateStart <= firstPathSlash || candidateStart >= candidateEnd) {
+            return null;
+        }
+
+        String candidate = value.substring(candidateStart, candidateEnd);
+        if (!isProfileIdentifierCandidate(candidate)) {
+            return null;
+        }
+
+        return new ProfileValueParts(
+                value.substring(0, candidateStart),
+                candidate,
+                value.substring(candidateEnd)
+        );
+    }
+
+    private int firstPathSlash(String value, int pathEnd) {
+        int schemeIndex = value.indexOf("://");
+        int searchStart = schemeIndex >= 0 ? schemeIndex + 3 : 0;
+        int firstSlash = value.indexOf('/', searchStart);
+        if (firstSlash >= 0 && firstSlash < pathEnd) {
+            return firstSlash;
+        }
+
+        return -1;
+    }
+
+    private ProfileValueParts profileQueryValueParts(String value) {
+        int queryStart = value.indexOf('?');
+        if (queryStart < 0) {
+            return null;
+        }
+
+        int queryEnd = firstNonNegative(value.indexOf('#', queryStart + 1), value.length());
+        int paramStart = queryStart + 1;
+        while (paramStart < queryEnd) {
+            int paramEnd = value.indexOf('&', paramStart);
+            if (paramEnd < 0 || paramEnd > queryEnd) {
+                paramEnd = queryEnd;
+            }
+
+            int equals = value.indexOf('=', paramStart);
+            if (equals > paramStart && equals < paramEnd) {
+                String key = value.substring(paramStart, equals).toLowerCase(Locale.ROOT);
+                String candidate = value.substring(equals + 1, paramEnd);
+                if (isProfileQueryKey(key) && isProfileIdentifierCandidate(candidate)) {
+                    return new ProfileValueParts(
+                            value.substring(0, equals + 1),
+                            candidate,
+                            value.substring(paramEnd)
+                    );
+                }
+            }
+
+            paramStart = paramEnd + 1;
+        }
+
+        return null;
+    }
+
+    private int firstNonNegative(int first, int second, int fallback) {
+        if (first < 0) {
+            return second < 0 ? fallback : second;
+        }
+
+        if (second < 0) {
+            return first;
+        }
+
+        return Math.min(first, second);
+    }
+
+    private int firstNonNegative(int first, int fallback) {
+        return first < 0 ? fallback : first;
+    }
+
+    private boolean isProfileQueryKey(String key) {
+        return key.equals("username")
+                || key.equals("user")
+                || key.equals("handle")
+                || key.equals("profile")
+                || key.equals("profile_id")
+                || key.equals("profileid")
+                || key.equals("account")
+                || key.equals("account_id")
+                || key.equals("accountid")
+                || key.equals("vanity")
+                || key.equals("vanity_name")
+                || key.equals("vanityname");
+    }
+
+    private boolean isGenericProfilePathSegment(String value) {
+        String lowerCaseValue = value.toLowerCase(Locale.ROOT);
+        return lowerCaseValue.equals("profile")
+                || lowerCaseValue.equals("profiles")
+                || lowerCaseValue.equals("perfil")
+                || lowerCaseValue.equals("perfis")
+                || lowerCaseValue.equals("user")
+                || lowerCaseValue.equals("users")
+                || lowerCaseValue.equals("account")
+                || lowerCaseValue.equals("accounts")
+                || lowerCaseValue.equals("page")
+                || lowerCaseValue.equals("pages");
+    }
+
+    private boolean isProfileIdentifierCandidate(String value) {
+        return !value.isBlank()
+                && value.length() >= 3
+                && !value.matches(".*[\\s/?&#=].*");
+    }
+
+    private void anonymizePreviousLooseProfileText(Element label, String original, String replacement) {
+        ProfileValueParts originalParts = profileValueParts(original);
+        ProfileValueParts replacementParts = profileValueParts(replacement);
+        String originalIdentifier = originalParts.identifier();
+        String replacementIdentifier = replacementParts.identifier();
+        if (!looksLikeUsername(originalIdentifier)) {
+            return;
+        }
+
+        Element current = label;
+        while (current != null && !"body".equalsIgnoreCase(current.tagName())) {
+            if (anonymizePreviousLooseProfileTextForNode(current, originalIdentifier, replacementIdentifier)) {
+                return;
+            }
+
+            current = current.parent();
+        }
+    }
+
+    private boolean anonymizePreviousLooseProfileTextForNode(
+            Element element,
+            String originalIdentifier,
+            String replacementIdentifier
+    ) {
+        Node previous = element.previousSibling();
+        while (previous != null) {
+            if (previous instanceof TextNode textNode) {
+                String text = textNode.text();
+                String trimmed = text.trim();
+                if (trimmed.isEmpty()) {
+                    previous = previous.previousSibling();
+                    continue;
+                }
+
+                if (trimmed.equals(originalIdentifier)) {
+                    textNode.text(text.replace(originalIdentifier, replacementIdentifier));
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (previous instanceof Element previousElement) {
+                String text = previousElement.text().trim();
+                if (text.isEmpty()) {
+                    previous = previous.previousSibling();
+                    continue;
+                }
+
+                if (!isPotentialFieldLabel(previousElement) && text.equals(originalIdentifier)) {
+                    replaceFirstTextNode(previousElement, replacementIdentifier);
+                    return true;
+                }
+
+                return false;
+            }
+
+            previous = previous.previousSibling();
+        }
+
+        return false;
+    }
+
+    private boolean looksLikeUsername(String value) {
+        return value.matches("(?i)^(?=.*[a-z])[a-z0-9._-]{3,}$");
     }
 
     private String createEmailReplacement(String original) {
@@ -351,12 +689,16 @@ class SocialDivFieldAnonymizer {
     }
 
     private String createVanityNameReplacement(String original) {
+        return createProfileReplacement(original);
+    }
+
+    private String createDescriptionReplacement(String ignored) {
         String replacement;
         do {
-            replacement = nextProfileToken();
-        } while (replacement.equals(original) || usedVanityNames.contains(replacement));
+            replacement = "DESC" + nextToken() + randomLikeToken();
+        } while (usedDescriptions.contains(replacement));
 
-        usedVanityNames.add(replacement);
+        usedDescriptions.add(replacement);
         return replacement;
     }
 
@@ -386,6 +728,19 @@ class SocialDivFieldAnonymizer {
         return replacement;
     }
 
+    private String createMiddleNameReplacement(String original) {
+        String replacement;
+        do {
+            replacement = nextMiddleName < FIRST_NAMES.length
+                    ? FIRST_NAMES[nextMiddleName]
+                    : "Meio" + nextToken();
+            nextMiddleName++;
+        } while (replacement.equals(original) || usedMiddleNames.contains(replacement));
+
+        usedMiddleNames.add(replacement);
+        return replacement;
+    }
+
     private String createFullNameReplacement(String original) {
         String replacement;
         do {
@@ -396,6 +751,12 @@ class SocialDivFieldAnonymizer {
         return replacement;
     }
 
+    private String nextFootballTeam() {
+        String team = FOOTBALL_TEAMS[nextTeam % FOOTBALL_TEAMS.length];
+        nextTeam++;
+        return team;
+    }
+
     private String nextProfileToken() {
         return "profile_" + nextToken();
     }
@@ -404,6 +765,17 @@ class SocialDivFieldAnonymizer {
         String token = Integer.toString(nextToken, 36).toLowerCase(Locale.ROOT);
         nextToken++;
         return token;
+    }
+
+    private String randomLikeToken() {
+        String token = nextToken();
+        StringBuilder value = new StringBuilder();
+        for (int i = 0; i < token.length(); i++) {
+            char digit = DESCRIPTION_DIGITS.charAt(i % DESCRIPTION_DIGITS.length());
+            char letter = DESCRIPTION_LETTERS.charAt((token.charAt(i) + i) % DESCRIPTION_LETTERS.length());
+            value.append(letter).append(digit);
+        }
+        return value.toString();
     }
 
     private String zeroPad(long value, int length) {
@@ -417,11 +789,17 @@ class SocialDivFieldAnonymizer {
 
     private enum FieldType {
         TARGET,
-        ACCOUNT_IDENTIFIER,
+        INTERNAL_TICKET_NUMBER,
+        DESCRIPTION,
+        SUBJECT,
+        PROFILE_IDENTIFIER,
         EMAIL,
-        VANITY_NAME,
         FIRST_NAME,
         LAST_NAME,
+        MIDDLE_NAME,
         FULL_NAME
+    }
+
+    private record ProfileValueParts(String base, String identifier, String suffix) {
     }
 }

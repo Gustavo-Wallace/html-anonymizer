@@ -14,7 +14,7 @@ public class HtmlAnonymizer {
         this.phoneAnonymizer = phoneAnonymizer;
         this.ticketAnonymizer = ticketAnonymizer;
         this.tableFieldAnonymizer = new TableFieldAnonymizer(ticketAnonymizer);
-        this.socialDivFieldAnonymizer = new SocialDivFieldAnonymizer();
+        this.socialDivFieldAnonymizer = new SocialDivFieldAnonymizer(ticketAnonymizer);
     }
 
     public String anonymize(String input) {

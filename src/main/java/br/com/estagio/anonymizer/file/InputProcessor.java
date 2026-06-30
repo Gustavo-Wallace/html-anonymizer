@@ -55,13 +55,13 @@ public class InputProcessor {
             throw new IllegalArgumentException("Input file name is invalid: " + inputFile);
         }
 
-        Path outputFile = outputFolder.resolve(fileName);
+        Path outputFile = outputFolder.resolve(OutputFileName.anonymized(fileName));
         if (outputFile.toAbsolutePath().normalize().equals(inputFile.toAbsolutePath().normalize())) {
             throw new IllegalArgumentException("Output file cannot be the same as input file: " + outputFile);
         }
 
         htmlFileProcessor.processFile(inputFile, outputFile, new HtmlAnonymizer());
-        return new FolderProcessingResult(1, 1, List.of(fileName));
+        return new FolderProcessingResult(1, 1, List.of(OutputFileName.anonymized(fileName)));
     }
 
     private FolderProcessingResult processFolder(Path inputFolder, Path outputFolder) throws IOException {

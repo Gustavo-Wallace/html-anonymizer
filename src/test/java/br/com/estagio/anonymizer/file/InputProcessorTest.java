@@ -26,10 +26,10 @@ class InputProcessorTest {
 
         FolderProcessingResult result = new InputProcessor().processInput(inputFile, outputFolder);
 
-        Path outputFile = outputFolder.resolve("single.html");
+        Path outputFile = outputFolder.resolve("single_anonimizado.html");
         assertEquals(1, result.getHtmlFilesFound());
         assertEquals(1, result.getFilesProcessed());
-        assertEquals(List.of(Path.of("single.html")), result.getProcessedFiles());
+        assertEquals(List.of(Path.of("single_anonimizado.html")), result.getProcessedFiles());
         assertTrue(Files.exists(outputFile));
         assertFalse(readFile(outputFile).contains("550000000000"));
         assertEquals("<td>550000000000</td>", readFile(inputFile));
@@ -43,7 +43,7 @@ class InputProcessorTest {
 
         new InputProcessor().processInput(inputFolder, outputFolder);
 
-        Path outputFile = outputFolder.resolve("empresa_a_anonimizado").resolve("index.html");
+        Path outputFile = outputFolder.resolve("empresa_a_anonimizado").resolve("index_anonimizado.html");
         assertTrue(Files.exists(outputFile));
         assertFalse(Files.exists(outputFolder.resolve("index.html")));
         assertFalse(Files.exists(outputFolder.resolve("empresa_a").resolve("index.html")));
@@ -58,7 +58,7 @@ class InputProcessorTest {
 
         new InputProcessor().processInput(inputFolder, outputFolder);
 
-        assertTrue(Files.exists(tempDir.resolve("clientes_anonimizado").resolve("a.html")));
+        assertTrue(Files.exists(tempDir.resolve("clientes_anonimizado").resolve("a_anonimizado.html")));
         assertFalse(Files.exists(tempDir.resolve("a.html")));
         assertEquals("<td>550000000000</td>", readFile(inputFolder.resolve("a.html")));
     }
@@ -72,8 +72,8 @@ class InputProcessorTest {
 
         new InputProcessor().processInput(inputFolder, outputFolder);
 
-        assertTrue(Files.exists(outputFolder.resolve("clientes_anonimizado").resolve("empresa1").resolve("b.html")));
-        assertTrue(Files.exists(outputFolder.resolve("clientes_anonimizado").resolve("empresa2").resolve("subpasta").resolve("c.html")));
+        assertTrue(Files.exists(outputFolder.resolve("clientes_anonimizado").resolve("empresa1").resolve("b_anonimizado.html")));
+        assertTrue(Files.exists(outputFolder.resolve("clientes_anonimizado").resolve("empresa2").resolve("subpasta").resolve("c_anonimizado.html")));
         assertFalse(Files.exists(outputFolder.resolve("clientes_anonimizado").resolve("empresa1_anonimizado")));
         assertFalse(Files.exists(outputFolder.resolve("clientes_anonimizado").resolve("empresa2_anonimizado")));
     }
@@ -92,6 +92,28 @@ class InputProcessorTest {
     }
 
     @Test
+    void shouldPreserveHtmExtensionWhenProcessingSingleFile() throws IOException {
+        Path inputFile = writeFile(tempDir.resolve("single.htm"), "<td>550000000000</td>");
+        Path outputFolder = tempDir.resolve("output");
+
+        new InputProcessor().processInput(inputFile, outputFolder);
+
+        assertTrue(Files.exists(outputFolder.resolve("single_anonimizado.htm")));
+        assertFalse(Files.exists(outputFolder.resolve("single_anonimizado.html")));
+    }
+
+    @Test
+    void shouldNotDuplicateAnonymizedSuffixWhenProcessingSingleFile() throws IOException {
+        Path inputFile = writeFile(tempDir.resolve("single_anonimizado.html"), "<td>550000000000</td>");
+        Path outputFolder = tempDir.resolve("output");
+
+        new InputProcessor().processInput(inputFile, outputFolder);
+
+        assertTrue(Files.exists(outputFolder.resolve("single_anonimizado.html")));
+        assertFalse(Files.exists(outputFolder.resolve("single_anonimizado_anonimizado.html")));
+    }
+
+    @Test
     void shouldNotCopyNonHtmlFilesWhenProcessingFolder() throws IOException {
         Path inputFolder = createDirectory("empresa_a");
         Path outputFolder = tempDir.resolve("anonimizados");
@@ -100,7 +122,7 @@ class InputProcessorTest {
 
         new InputProcessor().processInput(inputFolder, outputFolder);
 
-        assertTrue(Files.exists(outputFolder.resolve("empresa_a_anonimizado").resolve("index.html")));
+        assertTrue(Files.exists(outputFolder.resolve("empresa_a_anonimizado").resolve("index_anonimizado.html")));
         assertFalse(Files.exists(outputFolder.resolve("empresa_a_anonimizado").resolve("notes.txt")));
     }
 
@@ -126,8 +148,8 @@ class InputProcessorTest {
 
         new InputProcessor().processInput(inputFolder, outputFolder);
 
-        String first = readFile(outputFolder.resolve("empresa_a_anonimizado").resolve("first.html"));
-        String second = readFile(outputFolder.resolve("empresa_a_anonimizado").resolve("second.html"));
+        String first = readFile(outputFolder.resolve("empresa_a_anonimizado").resolve("first_anonimizado.html"));
+        String second = readFile(outputFolder.resolve("empresa_a_anonimizado").resolve("second_anonimizado.html"));
         String firstTicket = first.replaceAll(".*Internal Ticket Number\\s+(\\d+).*", "$1");
         String secondTicket = second.replaceAll(".*Internal Ticket Number:\\s+(\\d+).*", "$1");
         assertEquals(firstTicket, secondTicket);
