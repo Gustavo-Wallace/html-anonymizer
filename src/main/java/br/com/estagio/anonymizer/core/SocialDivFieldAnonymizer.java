@@ -162,6 +162,16 @@ class SocialDivFieldAnonymizer {
             return null;
         }
 
+        Element childValue = firstChildWithClass(label, "m");
+        if (childValue != null) {
+            return childValue;
+        }
+
+        Element descendantValue = firstCloseDescendantWithClass(label, "m");
+        if (descendantValue != null) {
+            return descendantValue;
+        }
+
         Element siblingValue = firstNextElementSiblingWithClass(label, "m");
         if (siblingValue != null) {
             return siblingValue;
@@ -186,6 +196,35 @@ class SocialDivFieldAnonymizer {
 
             if (afterLabel && child.hasClass("m")) {
                 return child;
+            }
+        }
+
+        return null;
+    }
+
+    private Element firstChildWithClass(Element element, String className) {
+        for (Element child : element.children()) {
+            if (child.hasClass(className)) {
+                return child;
+            }
+        }
+
+        return null;
+    }
+
+    private Element firstCloseDescendantWithClass(Element element, String className) {
+        for (Element child : element.children()) {
+            if (isPotentialFieldLabel(child)) {
+                continue;
+            }
+
+            if (child.hasClass(className)) {
+                return child;
+            }
+
+            Element descendant = firstCloseDescendantWithClass(child, className);
+            if (descendant != null) {
+                return descendant;
             }
         }
 
