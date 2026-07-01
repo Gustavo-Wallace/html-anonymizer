@@ -79,7 +79,7 @@ public class InputProcessor {
         long sizeBytes = Files.size(inputFile);
         Instant fileStart = Instant.now();
         listener.fileStarted(inputFile, sizeBytes);
-        htmlFileProcessor.processFile(inputFile, outputFile, new HtmlAnonymizer());
+        htmlFileProcessor.processFile(inputFile, outputFile, new HtmlAnonymizer(), listener);
         Duration fileDuration = Duration.between(fileStart, Instant.now());
         listener.fileFinished(inputFile, outputFile, sizeBytes, fileDuration);
         return new FolderProcessingResult(

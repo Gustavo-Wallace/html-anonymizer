@@ -2,6 +2,7 @@ package br.com.estagio.anonymizer.core;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -76,6 +77,10 @@ class TableFieldAnonymizer {
             return null;
         }
 
+        if (!mayContainSupportedTableField(input)) {
+            return input;
+        }
+
         Matcher matcher = ROW_PATTERN.matcher(input);
         StringBuilder result = new StringBuilder();
 
@@ -86,6 +91,15 @@ class TableFieldAnonymizer {
 
         matcher.appendTail(result);
         return result.toString();
+    }
+
+    private boolean mayContainSupportedTableField(String input) {
+        String lowerCaseInput = input.toLowerCase(Locale.ROOT);
+        return lowerCaseInput.contains("<tr")
+                && lowerCaseInput.contains("<th")
+                && (lowerCaseInput.contains("internal ticket number")
+                || lowerCaseInput.contains("description")
+                || lowerCaseInput.contains("subject"));
     }
 
     private String anonymizeRowContent(String rowContent) {

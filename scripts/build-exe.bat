@@ -4,7 +4,7 @@ setlocal
 cd /d "%~dp0.."
 
 set "APP_NAME=HTML Anonymizer"
-set "APP_VERSION=1.0.6"
+set "APP_VERSION=1.0.7"
 set "MAIN_JAR=html-anonymizer-1.0.0.jar"
 set "MAIN_CLASS=br.com.estagio.anonymizer.Main"
 set "DIST_DIR=dist"

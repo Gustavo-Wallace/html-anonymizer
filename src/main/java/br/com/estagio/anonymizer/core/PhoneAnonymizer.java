@@ -11,6 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class PhoneAnonymizer {
+    private static final int CONTEXT_LOOKBACK = 1200;
     private static final Pattern PHONE_PATTERN = Pattern.compile("(?<![\\d+])\\+?\\d(?:[ -]?\\d){7,14}(?!\\d)");
     private static final Pattern TICKET_PREFIX_PATTERN = Pattern.compile("Internal Ticket Number[\\t ]*:?[\\t ]*$");
     private static final Pattern TICKET_TABLE_PREFIX_PATTERN = Pattern.compile(
@@ -61,7 +62,7 @@ public class PhoneAnonymizer {
     }
 
     private boolean isInternalTicketNumber(String input, int phoneStart) {
-        String prefix = input.substring(0, phoneStart);
+        String prefix = input.substring(Math.max(0, phoneStart - CONTEXT_LOOKBACK), phoneStart);
         return TICKET_PREFIX_PATTERN.matcher(prefix).find()
                 || TICKET_TABLE_PREFIX_PATTERN.matcher(prefix).find()
                 || TARGET_DIV_PREFIX_PATTERN.matcher(prefix).find()

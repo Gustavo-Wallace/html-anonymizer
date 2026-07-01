@@ -9,6 +9,7 @@ import org.jsoup.nodes.TextNode;
 import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -101,6 +102,8 @@ class SocialDivFieldAnonymizer {
     private int nextLastName;
     private int nextMiddleName;
     private int nextTeam;
+    private Map<Element, FieldType> fieldTypeCache = new IdentityHashMap<>();
+    private Map<Element, Element> valueElementCache = new IdentityHashMap<>();
 
     SocialDivFieldAnonymizer() {
         this(new TicketAnonymizer());
@@ -119,14 +122,17 @@ class SocialDivFieldAnonymizer {
             return input;
         }
 
+        fieldTypeCache = new IdentityHashMap<>();
+        valueElementCache = new IdentityHashMap<>();
         boolean fullDocument = HTML_DOCUMENT_PATTERN.matcher(input).find();
         Document document = fullDocument ? Jsoup.parse(input) : Jsoup.parseBodyFragment(input);
         document.outputSettings().prettyPrint(false);
 
-        for (Element label : document.select("div")) {
+        List<Element> divs = document.getElementsByTag("div");
+        for (Element label : divs) {
             anonymizeLabel(label);
         }
-        recomposeFullNames(document);
+        recomposeFullNames(divs);
 
         return fullDocument ? document.outerHtml() : document.body().html();
     }
@@ -215,6 +221,16 @@ class SocialDivFieldAnonymizer {
     }
 
     private FieldType fieldTypeFor(Element label) {
+        if (fieldTypeCache.containsKey(label)) {
+            return fieldTypeCache.get(label);
+        }
+
+        FieldType fieldType = detectFieldType(label);
+        fieldTypeCache.put(label, fieldType);
+        return fieldType;
+    }
+
+    private FieldType detectFieldType(Element label) {
         String labelText = normalizedLabel(label);
 
         if (isLabel(labelText, "Target")) {
@@ -282,12 +298,19 @@ class SocialDivFieldAnonymizer {
     }
 
     private Element findValueElement(Element label) {
+        if (valueElementCache.containsKey(label)) {
+            return valueElementCache.get(label);
+        }
+
         Element structuredValue = findStructuredValueElement(label);
         if (structuredValue != null) {
+            valueElementCache.put(label, structuredValue);
             return structuredValue;
         }
 
-        return findNextDivValueElement(label);
+        Element nextDivValue = findNextDivValueElement(label);
+        valueElementCache.put(label, nextDivValue);
+        return nextDivValue;
     }
 
     private Element findStructuredValueElement(Element label) {
@@ -347,7 +370,7 @@ class SocialDivFieldAnonymizer {
                 return null;
             }
 
-            Element descendant = sibling.selectFirst("div." + className);
+            Element descendant = firstCloseDescendantWithClass(sibling, className);
             if (descendant != null) {
                 return descendant;
             }
@@ -422,8 +445,8 @@ class SocialDivFieldAnonymizer {
     }
 
     private boolean containsPotentialFieldLabel(Element element) {
-        for (Element child : element.select("div")) {
-            if (child != element && isPotentialFieldLabel(child)) {
+        for (Element child : element.children()) {
+            if (isPotentialFieldLabel(child) || containsPotentialFieldLabel(child)) {
                 return true;
             }
         }
@@ -891,17 +914,7 @@ class SocialDivFieldAnonymizer {
     }
 
     private String fullNameReplacementFor(Element label, String original) {
-        String composed = composeFullNameFromNearbyParts(label);
-        if (composed != null && !composed.equals(original)) {
-            return composed;
-        }
-
         return fullNameReplacements.computeIfAbsent(original, this::createFullNameReplacement);
-    }
-
-    private String composeFullNameFromNearbyParts(Element label) {
-        NameParts nameParts = nearbyNameParts(label);
-        return composeFullName(nameParts);
     }
 
     private String composeFullName(NameParts nameParts) {
@@ -933,8 +946,8 @@ class SocialDivFieldAnonymizer {
         fullName.append(value.trim());
     }
 
-    private void recomposeFullNames(Document document) {
-        for (Element fullNameLabel : document.select("div")) {
+    private void recomposeFullNames(List<Element> divs) {
+        for (Element fullNameLabel : divs) {
             if (fieldTypeFor(fullNameLabel) != FieldType.FULL_NAME) {
                 continue;
             }
@@ -962,10 +975,14 @@ class SocialDivFieldAnonymizer {
 
     private Element nearestNameBlock(Element fullNameLabel) {
         Element current = fullNameLabel.parent();
-        while (current != null && !"body".equalsIgnoreCase(current.tagName())) {
+        while (current != null) {
             NameParts parts = namePartsInBlock(current, fullNameLabel);
             if (parts.hasAnyValue()) {
                 return current;
+            }
+
+            if ("body".equalsIgnoreCase(current.tagName())) {
+                return null;
             }
 
             current = current.parent();
@@ -978,7 +995,8 @@ class SocialDivFieldAnonymizer {
         String firstName = null;
         String middleName = null;
         String lastName = null;
-        for (Element candidate : block.select("div")) {
+        List<Element> divs = descendantDivs(block);
+        for (Element candidate : divs) {
             if (candidate == fullNameLabel) {
                 continue;
             }
@@ -1012,48 +1030,21 @@ class SocialDivFieldAnonymizer {
         return new NameParts(firstName, middleName, lastName);
     }
 
-    private NameParts nearbyNameParts(Element label) {
-        Element parent = label.parent();
-        if (parent == null) {
-            return new NameParts(null, null, null);
-        }
+    private List<Element> descendantDivs(Element block) {
+        List<Element> divs = new java.util.ArrayList<>();
+        collectDescendantDivs(block, divs);
+        return divs;
+    }
 
-        String firstName = null;
-        String middleName = null;
-        String lastName = null;
-        List<Element> labels = parent.select("div");
-        for (Element candidate : labels) {
-            if (candidate == label) {
-                break;
-            }
-
-            FieldType candidateType = fieldTypeFor(candidate);
-            if (candidateType != FieldType.FIRST_NAME
-                    && candidateType != FieldType.MIDDLE_NAME
-                    && candidateType != FieldType.LAST_NAME) {
-                continue;
-            }
-
-            Element valueElement = findValueElement(candidate);
-            if (valueElement == null) {
-                continue;
-            }
-
-            String value = valueElement.text().trim();
-            if (value.isEmpty() || containsPotentialFieldLabel(valueElement)) {
-                continue;
-            }
-
-            if (candidateType == FieldType.FIRST_NAME) {
-                firstName = value;
-            } else if (candidateType == FieldType.MIDDLE_NAME) {
-                middleName = value;
+    private void collectDescendantDivs(Element element, List<Element> divs) {
+        for (Element child : element.children()) {
+            if ("div".equalsIgnoreCase(child.tagName())) {
+                divs.add(child);
+                collectDescendantDivs(child, divs);
             } else {
-                lastName = value;
+                collectDescendantDivs(child, divs);
             }
         }
-
-        return new NameParts(firstName, middleName, lastName);
     }
 
     private String createFullNameReplacement(String original) {

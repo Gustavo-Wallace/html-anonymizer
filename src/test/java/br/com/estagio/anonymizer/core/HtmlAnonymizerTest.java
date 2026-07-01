@@ -2,12 +2,14 @@ package br.com.estagio.anonymizer.core;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HtmlAnonymizerTest {
@@ -121,6 +123,33 @@ class HtmlAnonymizerTest {
         assertTrue(result.contains("<table>"));
         assertTrue(result.contains("<th>Description</th><td>"));
         assertTrue(result.matches("(?s).*<p>Telefone \\d{12}</p>.*"));
+    }
+
+    @Test
+    void shouldFinishModeratelyLargeSyntheticHtml() {
+        HtmlAnonymizer anonymizer = new HtmlAnonymizer();
+        StringBuilder html = new StringBuilder();
+        for (int i = 0; i < 4_000; i++) {
+            html.append("<section>")
+                    .append("<div class=\"t i\">First Name<div class=\"m\"><div>Nome")
+                    .append(i)
+                    .append("</div></div></div>")
+                    .append("<div class=\"t i\">Last Name<div class=\"m\"><div>Sobrenome")
+                    .append(i)
+                    .append("</div></div></div>")
+                    .append("<div class=\"t i\">Full Name<div class=\"m\"><div>Nome")
+                    .append(i)
+                    .append(" Sobrenome")
+                    .append(i)
+                    .append("</div></div></div>")
+                    .append("<p>Telefone 550000000000</p>")
+                    .append("</section>");
+        }
+
+        assertTimeoutPreemptively(Duration.ofSeconds(20), () -> {
+            String result = anonymizer.anonymize(html.toString());
+            assertFalse(result.contains("550000000000"));
+        });
     }
 
     private static String firstPhone(String value) {

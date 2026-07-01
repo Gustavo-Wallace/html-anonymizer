@@ -1,5 +1,9 @@
 package br.com.estagio.anonymizer.core;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Objects;
+
 public class HtmlAnonymizer {
     private final PhoneAnonymizer phoneAnonymizer;
     private final TicketAnonymizer ticketAnonymizer;
@@ -18,9 +22,42 @@ public class HtmlAnonymizer {
     }
 
     public String anonymize(String input) {
-        String withoutSocialDivFields = socialDivFieldAnonymizer.anonymize(input);
-        String withoutTableFields = tableFieldAnonymizer.anonymize(withoutSocialDivFields);
-        String withoutPhones = phoneAnonymizer.anonymize(withoutTableFields);
-        return ticketAnonymizer.anonymize(withoutPhones);
+        return anonymize(input, AnonymizationListener.NONE);
+    }
+
+    public String anonymize(String input, AnonymizationListener listener) {
+        Objects.requireNonNull(listener, "listener must not be null");
+
+        String withoutSocialDivFields = runStage(
+                "SocialDivFieldAnonymizer",
+                input,
+                socialDivFieldAnonymizer::anonymize,
+                listener
+        );
+        String withoutTableFields = runStage(
+                "WhatsappTableFieldAnonymizer",
+                withoutSocialDivFields,
+                tableFieldAnonymizer::anonymize,
+                listener
+        );
+        String withoutPhones = runStage("PhoneAnonymizer", withoutTableFields, phoneAnonymizer::anonymize, listener);
+        return runStage("TicketAnonymizer", withoutPhones, ticketAnonymizer::anonymize, listener);
+    }
+
+    private String runStage(
+            String stageName,
+            String input,
+            StageAnonymizer anonymizer,
+            AnonymizationListener listener
+    ) {
+        listener.stageStarted(stageName);
+        Instant start = Instant.now();
+        String result = anonymizer.anonymize(input);
+        listener.stageFinished(stageName, Duration.between(start, Instant.now()));
+        return result;
+    }
+
+    private interface StageAnonymizer {
+        String anonymize(String input);
     }
 }

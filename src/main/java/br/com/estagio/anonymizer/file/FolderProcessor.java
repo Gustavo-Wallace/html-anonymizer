@@ -61,7 +61,7 @@ public class FolderProcessor {
             long sizeBytes = Files.size(htmlFile);
             Instant fileStart = Instant.now();
             listener.fileStarted(htmlFile, sizeBytes);
-            htmlFileProcessor.processFile(htmlFile, outputFile, anonymizer);
+            htmlFileProcessor.processFile(htmlFile, outputFile, anonymizer, listener);
             Duration fileDuration = Duration.between(fileStart, Instant.now());
             listener.fileFinished(htmlFile, outputFile, sizeBytes, fileDuration);
             if (sizeBytes > largestFileSize) {

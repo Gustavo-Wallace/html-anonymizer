@@ -81,6 +81,18 @@ public class Main {
             }
 
             @Override
+            public void stageStarted(Path inputFile, String stageName) {
+                out.println(stageName + " iniciado.");
+                out.flush();
+            }
+
+            @Override
+            public void stageFinished(Path inputFile, String stageName, Duration duration) {
+                out.println(stageName + " concluido em " + formatDuration(duration));
+                out.flush();
+            }
+
+            @Override
             public void fileFinished(Path inputFile, Path outputFile, long sizeBytes, Duration duration) {
                 out.println("Concluido: " + displayName(inputFile) + " em " + formatDuration(duration));
                 out.flush();
@@ -89,15 +101,16 @@ public class Main {
     }
 
     private static String formatDuration(Duration duration) {
+        double totalSeconds = Math.max(0, duration.toMillis()) / 1000.0;
+        if (totalSeconds < 60) {
+            return String.format(Locale.ROOT, "%.1fs", totalSeconds);
+        }
+
         long seconds = Math.max(0, duration.toSeconds());
         long minutes = seconds / 60;
         long remainingSeconds = seconds % 60;
 
-        if (minutes > 0) {
-            return minutes + "min " + remainingSeconds + "s";
-        }
-
-        return remainingSeconds + "s";
+        return minutes + "min " + remainingSeconds + "s";
     }
 
     private static String formatMegabytes(long sizeBytes) {

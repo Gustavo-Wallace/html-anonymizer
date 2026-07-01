@@ -285,6 +285,16 @@ public class MainWindow extends JFrame {
             }
 
             @Override
+            public void stageStarted(Path inputFile, String stageName) {
+                appendLog(stageName + " iniciado.");
+            }
+
+            @Override
+            public void stageFinished(Path inputFile, String stageName, Duration duration) {
+                appendLog(stageName + " concluido em " + formatDuration(duration));
+            }
+
+            @Override
             public void fileFinished(Path inputFile, Path outputFile, long sizeBytes, Duration duration) {
                 appendLog("Concluido: " + displayName(inputFile) + " em " + formatDuration(duration));
             }
@@ -361,15 +371,16 @@ public class MainWindow extends JFrame {
     }
 
     private String formatDuration(Duration duration) {
+        double totalSeconds = Math.max(0, duration.toMillis()) / 1000.0;
+        if (totalSeconds < 60) {
+            return String.format(Locale.ROOT, "%.1fs", totalSeconds);
+        }
+
         long seconds = Math.max(0, duration.toSeconds());
         long minutes = seconds / 60;
         long remainingSeconds = seconds % 60;
 
-        if (minutes > 0) {
-            return minutes + "min " + remainingSeconds + "s";
-        }
-
-        return remainingSeconds + "s";
+        return minutes + "min " + remainingSeconds + "s";
     }
 
     private String formatMegabytes(long sizeBytes) {
